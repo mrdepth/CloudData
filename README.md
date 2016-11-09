@@ -1,0 +1,2 @@
+# CloudData
+CoreData + CloudKit
