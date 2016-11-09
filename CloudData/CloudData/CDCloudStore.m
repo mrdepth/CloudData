@@ -159,6 +159,7 @@ typedef NS_ENUM(NSInteger, CDTransactionAction) {
 
 - (NSManagedObjectModel*) createBackingModelFromSourceModel:(NSManagedObjectModel*) model {
 	NSManagedObjectModel* cloudDataObjectModel = [[NSManagedObjectModel alloc] initWithContentsOfURL:[[NSBundle bundleForClass:self.class] URLForResource:@"CloudData" withExtension:@"momd"]];
+	
 	NSManagedObjectModel* backingModel = [NSManagedObjectModel modelByMergingModels:@[model, cloudDataObjectModel]];
 	
 	NSEntityDescription* recordEntity = backingModel.entitiesByName[@"CDRecord"];
@@ -179,7 +180,7 @@ typedef NS_ENUM(NSInteger, CDTransactionAction) {
 		inverseRelationship.optional = NO;
 		inverseRelationship.destinationEntity = recordEntity;
 		
-		relationship.inverseRelationship = relationship;
+		relationship.inverseRelationship = inverseRelationship;
 		relationship.destinationEntity.properties = [relationship.destinationEntity.properties arrayByAddingObject:inverseRelationship];
 	}
 	recordEntity.properties = properties;
@@ -247,7 +248,6 @@ typedef NS_ENUM(NSInteger, CDTransactionAction) {
 		changedValues[object.objectID] = dic;
 	}
 	
-	
 	[_backingManagedObjectContext performBlockAndWait:^{
 		
 		CDTransaction* (^newChangeTransaction)(CDRecord*, NSString*, id) = ^(CDRecord* record, NSString* key, id value) {
@@ -271,6 +271,7 @@ typedef NS_ENUM(NSInteger, CDTransactionAction) {
 			if (!backingObject) {
 				backingObject = [NSEntityDescription insertNewObjectForEntityForName:object.entity.name inManagedObjectContext:_backingManagedObjectContext];
 				[backingObject setValue:record forKey:@"CDRecord"];
+				[record setValue:backingObject forKey:record.recordType];
 			}
 			record.version++;
 			
@@ -307,14 +308,14 @@ typedef NS_ENUM(NSInteger, CDTransactionAction) {
 						if ([obj isKindOfClass:[NSSet class]]) {
 							NSMutableSet* references = [NSMutableSet new];
 							for (NSManagedObject* object in obj) {
-								CDRecord* record = [self.backingObjectsHelper recordWithObjectID:object.objectID];
+								CDRecord* record = [object valueForKey:@"CDRecord"];
 								[references addObject:record.recordID];
 							}
 							value = references;
 						}
 						else {
 							if (obj) {
-								CDRecord* record = [self.backingObjectsHelper recordWithObjectID:[obj objectID]];
+								CDRecord* record = [obj valueForKey:@"CDRecord"];
 								value = record.recordID;
 							}
 							else

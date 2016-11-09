@@ -29,9 +29,11 @@
 	NSString* path = [NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, YES)[0] stringByAppendingPathComponent:@"test.sqlite"];
 	[[NSFileManager defaultManager] removeItemAtPath:path error:nil];
 	NSError* error;
-	//[self.persistentStoreCoordinator addPersistentStoreWithType:CDCloudStoreType configuration:nil URL:[NSURL fileURLWithPath:path] options:nil error:&error];
-	[[NSFileManager defaultManager] createDirectoryAtPath:[path stringByDeletingLastPathComponent] withIntermediateDirectories:YES attributes:nil error:nil];
-	[self.persistentStoreCoordinator addPersistentStoreWithType:NSSQLiteStoreType configuration:nil URL:[NSURL fileURLWithPath:path] options:nil error:&error];
+	[self.persistentStoreCoordinator addPersistentStoreWithType:CDCloudStoreType configuration:nil URL:[NSURL fileURLWithPath:path] options:nil error:&error];
+
+//	[[NSFileManager defaultManager] createDirectoryAtPath:[path stringByDeletingLastPathComponent] withIntermediateDirectories:YES attributes:nil error:nil];
+//	[self.persistentStoreCoordinator addPersistentStoreWithType:NSSQLiteStoreType configuration:nil URL:[NSURL fileURLWithPath:path] options:nil error:&error];
+	
 	self.managedObjectContext = [[NSManagedObjectContext alloc] initWithConcurrencyType:NSMainQueueConcurrencyType];
 	self.managedObjectContext.persistentStoreCoordinator = self.persistentStoreCoordinator;
 	
@@ -52,13 +54,13 @@
 	
 	Parent* parent2 = [other objectWithID:parent.objectID];
 	parent.name = @"from 1";
-	
 	parent2.name = @"from 2";
+	
 	[self.managedObjectContext save:nil];
 	
 	error = nil;
 	[other save:&error];
-	NSLog(@"%@", error.userInfo[@"conflictList"]);
+	NSLog(@"%@", error.userInfo[@"conflictList"][0]);
 	NSMergeConflict* conflict = error.userInfo[@"conflictList"][0];
 	NSMergePolicy* policy = NSMergeByPropertyStoreTrumpMergePolicy;
 	BOOL b = [policy resolveConflicts:error.userInfo[@"conflictList"] error:&error];
