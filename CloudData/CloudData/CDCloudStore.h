@@ -13,8 +13,11 @@ FOUNDATION_EXPORT NSString * const CDCloudStoreType;
 FOUNDATION_EXPORT NSString * const CDCloudStoreOptionContainerIdentifierKey;
 FOUNDATION_EXPORT NSString * const CDCloudStoreOptionDatabaseScopeKey;
 FOUNDATION_EXPORT NSString * const CDCloudStoreOptionRecordZoneKey;
+FOUNDATION_EXPORT NSString * const CDCloudStoreOptionMergePolicyType;
 
 FOUNDATION_EXPORT NSString * const CDDidReceiveRemoteNotification;
+
+
 
 
 @interface CDCloudStore : NSIncrementalStore

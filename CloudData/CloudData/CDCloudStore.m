@@ -6,17 +6,12 @@
 //  Copyright © 2016 Artem Shimanski. All rights reserved.
 //
 
-#import <CloudKit/CloudKit.h>
-#import <CoreData/CoreData.h>
 #import "CDCloudStore.h"
-#import "CDOperationQueue.h"
 #import "NSUUID+CD.h"
-#import "NSAttributeDescription+CD.h"
-#import "NSRelationshipDescription+CD.h"
 #import <objc/runtime.h>
-#import "CDBackingObjectHelper.h"
-#import "CDRecord+CoreDataClass.h"
-#import "CDTransaction+CoreDataClass.h"
+#import "CDCloudStore+Protected.h"
+#import "CDPushOperation.h"
+#import "CDPullOperation.h"
 
 
 NSString * const CDCloudStoreType = @"CDCloudStore";
@@ -24,24 +19,15 @@ NSString * const CDCloudStoreType = @"CDCloudStore";
 NSString * const CDCloudStoreOptionContainerIdentifierKey = @"CDCloudStoreOptionContainerIdentifierKey";
 NSString * const CDCloudStoreOptionDatabaseScopeKey = @"CDCloudStoreOptionDatabaseScopeKey";
 NSString * const CDCloudStoreOptionRecordZoneKey = @"CDCloudStoreOptionRecordZoneKey";
+NSString * const CDCloudStoreOptionMergePolicyType = @"CDCloudStoreOptionMergePolicyType";
 
 NSString * const CDDidReceiveRemoteNotification = @"CDDidReceiveRemoteNotification";
 
-typedef NS_ENUM(NSInteger, CDTransactionAction) {
-	CDTransactionActionChange,
-	CDTransactionActionDelete
-};
+NSString * const CDSubscriptionID = @"autoUpdate";
 
 @interface CDCloudStore()
-@property (nonatomic, strong) CDOperationQueue* operationQueue;
-@property (nonatomic, strong) NSPersistentStoreCoordinator* backingPersistentStoreCoordinator;
-@property (nonatomic, strong) NSPersistentStore* backingPersistentStore;
-@property (nonatomic, strong) NSManagedObjectModel* backingManagedObjectModel;
-@property (nonatomic, strong) NSManagedObjectContext* backingManagedObjectContext;
-@property (nonatomic, strong) NSDictionary<NSString*, NSEntityDescription*>* entities;
-@property (nonatomic, strong) CKRecordZoneID* recordZoneID;
-@property (nonatomic, strong) id ubiquityIdentityToken;
-@property (nonatomic, strong) CDBackingObjectHelper* backingObjectsHelper;
+@property (nonatomic, assign, getter = isPushing) BOOL pushing;
+@property (nonatomic, assign, getter = isPulling) BOOL pulling;
 
 @end
 
@@ -57,7 +43,6 @@ typedef NS_ENUM(NSInteger, CDTransactionAction) {
 - (void) dealloc {
 	[[NSNotificationCenter defaultCenter] removeObserver:self];
 }
-
 
 - (BOOL)loadMetadata:(NSError **)error {
 	if (!self.backingPersistentStoreCoordinator) {
@@ -108,13 +93,14 @@ typedef NS_ENUM(NSInteger, CDTransactionAction) {
 }
 
 - (nullable NSIncrementalStoreNode *)newValuesForObjectWithID:(NSManagedObjectID*)objectID withContext:(NSManagedObjectContext*)context error:(NSError**)error {
-	NSMutableDictionary* values = [NSMutableDictionary new];
+	__block NSMutableDictionary* values = nil;
 	
 	__block int64_t version = 0;
 	[_backingManagedObjectContext performBlockAndWait:^{
 		NSManagedObject* backingObject = [self.backingObjectsHelper backingObjectWithObjectID:objectID];
 		if (!backingObject)
 			return;
+		values = [NSMutableDictionary new];
 		NSEntityDescription* entity = _entities[backingObject.entity.name];
 		for (NSString* key in entity.attributesByName.allKeys) {
 			id obj = [backingObject valueForKey:key];
@@ -134,13 +120,15 @@ typedef NS_ENUM(NSInteger, CDTransactionAction) {
 		CDRecord* record = [backingObject valueForKey:@"CDRecord"];
 		version = record.version;
 	}];
-	return [[NSIncrementalStoreNode alloc] initWithObjectID:objectID withValues:values version:version];
+	return values ? [[NSIncrementalStoreNode alloc] initWithObjectID:objectID withValues:values version:version] : nil;
 }
 
 - (nullable id)newValueForRelationship:(NSRelationshipDescription*)relationship forObjectWithID:(NSManagedObjectID*)objectID withContext:(nullable NSManagedObjectContext *)context error:(NSError **)error {
-	__block id result;
+	__block id result = nil;
 	[_backingManagedObjectContext performBlockAndWait:^{
 		NSManagedObject* backingObject = [self.backingObjectsHelper backingObjectWithObjectID:objectID];
+		if (!backingObject)
+			return;
 		if (relationship.toMany) {
 			NSMutableSet* set = [NSMutableSet new];
 			for (NSManagedObject* object in [backingObject valueForKey:relationship.name])
@@ -191,69 +179,230 @@ typedef NS_ENUM(NSInteger, CDTransactionAction) {
 - (BOOL) loadBackingStoreWithError:(NSError **)error {
 	id value = self.options[CDCloudStoreOptionDatabaseScopeKey];
 	id zone = self.options[CDCloudStoreOptionRecordZoneKey] ?: [[self.URL lastPathComponent] stringByDeletingPathExtension];
+	id mergePolicyType = self.options[CDCloudStoreOptionMergePolicyType] ?: @(NSMergeByPropertyObjectTrumpMergePolicyType);
+	NSAssert([mergePolicyType integerValue] != NSErrorMergePolicyType, @"NSErrorMergePolicyType in not supported");
+	self.mergePolicy = [[NSMergePolicy alloc] initWithMergeType:[mergePolicyType integerValue]];
+	
 	
 	NSString* owner = floor(NSFoundationVersionNumber) <= NSFoundationVersionNumber_iOS_9_x_Max ? CKOwnerDefaultName : CKCurrentUserDefaultName;
 	self.recordZoneID = [[CKRecordZoneID alloc] initWithZoneName:zone ownerName:owner];
 	
 	NSString* containerIdentifier = self.options[CDCloudStoreOptionContainerIdentifierKey];
-	CKDatabaseScope databaseScope = value ? [value integerValue] : CKDatabaseScopePrivate;
+	self.databaseScope = value ? [value integerValue] : CKDatabaseScopePrivate;
 	
 	id token = [[NSFileManager defaultManager] ubiquityIdentityToken];
 	self.ubiquityIdentityToken = token;
 	
 	NSString* identifier;
-	if (databaseScope == CKDatabaseScopePrivate && token)
+	if (self.databaseScope == CKDatabaseScopePrivate && token)
 		identifier = [NSUUID UUIDWithUbiquityIdentityToken:token].UUIDString;
 	else
 		identifier = @"local";
-	NSURL* url = [self.URL URLByAppendingPathComponent:[NSString stringWithFormat:@"%@/%@.sqlite", identifier, self.recordZoneID.zoneName]];
+	NSURL* url = [self.URL URLByAppendingPathComponent:[NSString stringWithFormat:@"%@/%@/%@.sqlite", identifier, containerIdentifier, self.recordZoneID.zoneName]];
 
 	[[NSFileManager defaultManager] createDirectoryAtPath:[url.path stringByDeletingLastPathComponent] withIntermediateDirectories:YES attributes:nil error:error];
 	
 	self.backingPersistentStore = [_backingPersistentStoreCoordinator addPersistentStoreWithType:NSSQLiteStoreType configuration:nil URL:url options:@{} error:error];
 	
-	/*self.accountStatus = CKAccountStatusCouldNotDetermine;
-	if (_backingPersistentStore && (databaseScope == CKDatabaseScopePublic || token)) {
+	self.accountStatus = CKAccountStatusCouldNotDetermine;
+	if (self.backingPersistentStore && (self.databaseScope == CKDatabaseScopePublic || token)) {
 		self.container = containerIdentifier ? [CKContainer containerWithIdentifier:containerIdentifier] : [CKContainer defaultContainer];
-		[self loadDatabaseWithScope:databaseScope];
+		[self loadDatabase];
 		return YES;
 	}
 	else {
 		self.database = nil;
 		return NO;
-	}*/
+	}
 	
 	return self.backingPersistentStore != nil;
 }
 
+- (void) loadDatabase {
+	if ([self.container respondsToSelector:@selector(databaseWithDatabaseScope:)])
+		self.database = [self.container databaseWithDatabaseScope:self.databaseScope];
+	else {
+		switch (self.databaseScope) {
+			case CKDatabaseScopePublic:
+				self.database = [self.container publicCloudDatabase];
+				break;
+			case CKDatabaseScopePrivate:
+				self.database = [self.container privateCloudDatabase];
+				break;
+			default:
+				NSAssert(NO, @"Unsupported database scope %ld", (long) self.databaseScope);
+				break;
+		}
+	}
+	
+	[self.operationQueue addOperationWithBlock:^(CDOperation *operation) {
+		[self.container accountStatusWithCompletionHandler:^(CKAccountStatus accountStatus, NSError * _Nullable error) {
+			NSLog(@"AccountStatus %ld, error: %@", (long)accountStatus, error);
+			if (!error) {
+				self.accountStatus = accountStatus;
+				[self loadRecordZone];
+			}
+			
+			[operation finishWithError:error];
+		}];
+	}];
+}
+
+- (void) loadRecordZone {
+	[self.operationQueue addOperationWithBlock:^(CDOperation *operation) {
+		
+		CKFetchRecordZonesOperation* databaseOperation = [[CKFetchRecordZonesOperation alloc] initWithRecordZoneIDs:@[self.recordZoneID]];
+		databaseOperation.fetchRecordZonesCompletionBlock = ^(NSDictionary<CKRecordZoneID *, CKRecordZone *> * _Nullable recordZonesByZoneID, NSError * _Nullable operationError) {
+			NSLog(@"CKFetchRecordZonesOperation error: %@", operationError);
+			
+			CKRecordZone* zone = recordZonesByZoneID[self.recordZoneID];
+			if (!zone) {
+				if ([operationError.domain isEqualToString:CKErrorDomain]) {
+					NSError* zoneError = operationError.userInfo[CKPartialErrorsByItemIDKey][self.recordZoneID];
+					if (zoneError.code == CKErrorZoneNotFound) {
+						if (self.accountStatus == CKAccountStatusAvailable) {
+							CKRecordZone* zone = [[CKRecordZone alloc] initWithZoneID:self.recordZoneID];
+							[self.operationQueue addOperationWithBlock:^(CDOperation *operation) {
+								CKModifyRecordZonesOperation* databaseOperation = [[CKModifyRecordZonesOperation alloc] initWithRecordZonesToSave:@[zone] recordZoneIDsToDelete:nil];
+								databaseOperation.modifyRecordZonesCompletionBlock = ^(NSArray<CKRecordZone *> * _Nullable savedRecordZones, NSArray<CKRecordZoneID *> * _Nullable deletedRecordZoneIDs, NSError * _Nullable operationError) {
+									NSLog(@"CKModifyRecordZonesOperation error: %@", operationError);
+									if (!operationError && savedRecordZones.count > 0) {
+										self.recordZone = [savedRecordZones lastObject];
+										[self loadSubscription];
+										[self pull];
+										[self push];
+									}
+									[operation finishWithError:operationError];
+									
+								};
+								[self.database addOperation:databaseOperation];
+							}];
+						}
+						else {
+							[operation finishWithError:operationError];
+						}
+					}
+				}
+			}
+			else {
+				self.recordZone = zone;
+				[self loadSubscription];
+				[self pull];
+				[self push];
+			}
+			[operation finishWithError:operationError];
+		};
+		
+		[self.database addOperation:databaseOperation];
+	}];
+}
+
+- (void) loadSubscription {
+	[self.operationQueue addOperationWithBlock:^(CDOperation *operation) {
+		[self.database fetchSubscriptionWithID:CDSubscriptionID completionHandler:^(CKSubscription * _Nullable subscription, NSError * _Nullable error) {
+			NSLog(@"fetchSubscriptionWithID error: %@", error);
+			if (error && [error.domain isEqualToString:CKErrorDomain] && error.code == CKErrorUnknownItem) {
+				CKSubscription* subscription = [[CKSubscription alloc] initWithZoneID:self.recordZoneID subscriptionID:CDSubscriptionID options:0];
+				CKNotificationInfo* info = [CKNotificationInfo new];
+				info.shouldSendContentAvailable = YES;
+				subscription.notificationInfo = info;
+				
+				CKModifySubscriptionsOperation* databaseOperation = [[CKModifySubscriptionsOperation alloc] initWithSubscriptionsToSave:@[subscription] subscriptionIDsToDelete:nil];
+				databaseOperation.modifySubscriptionsCompletionBlock = ^(NSArray<CKSubscription *> * _Nullable savedSubscriptions, NSArray<NSString *> * _Nullable deletedSubscriptionIDs, NSError * _Nullable operationError) {
+					NSLog(@"CKModifySubscriptionsOperation error: %@", operationError);
+					[operation finishWithError:operationError];
+				};
+				[self.database addOperation:databaseOperation];
+			}
+			else {
+				[operation finishWithError:error];
+			}
+		}];
+	}];
+}
+
+- (BOOL) iCloudIsAvailableForReading {
+	if (self.databaseScope == CKDatabaseScopePublic)
+		return self.database != nil && self.recordZone != nil;
+	else
+		return self.accountStatus == CKAccountStatusAvailable && self.database != nil && self.recordZone != nil;
+}
+
+- (BOOL) iCloudIsAvailableForWriting {
+	return self.accountStatus == CKAccountStatusAvailable && self.database != nil && self.recordZone != nil;
+}
+
 #pragma mark - Save/Fetch requests
+
+- (NSMergeConflict*) findConflictsInObject:(NSManagedObject*) object withRecord:(CDRecord*) record {
+	NSArray* transactions = [[record.transactions allObjects] sortedArrayUsingDescriptors:@[[NSSortDescriptor sortDescriptorWithKey:@"version" ascending:YES]]];
+	if (transactions.count > 0) {
+		NSManagedObject* backingObject = [record valueForKey:record.recordType];
+		if (backingObject) {
+			NSIncrementalStoreNode* node = [self newValuesForObjectWithID:object.objectID withContext:object.managedObjectContext error:nil];
+			NSMutableDictionary* cachedSnapshot = [NSMutableDictionary new];
+			NSMutableDictionary* persistedSnapshot = [NSMutableDictionary new];
+			
+			for (NSPropertyDescription* property in object.objectID.entity.properties) {
+				if ([property isKindOfClass:[NSRelationshipDescription class]] && [(NSRelationshipDescription*) property isToMany])
+					continue;
+				
+				id value = [node valueForPropertyDescription:property];
+				if (value)
+					persistedSnapshot[property.name] = value;
+				value = [object valueForKey:property.name];
+				if (value)
+					cachedSnapshot[property.name] = value;
+			}
+			return [[NSMergeConflict alloc] initWithSource:object newVersion:record.version + 1 oldVersion:record.version cachedSnapshot:persistedSnapshot persistedSnapshot:nil];
+		}
+		else
+			return [[NSMergeConflict alloc] initWithSource:object newVersion:record.version + 1 oldVersion:0 cachedSnapshot:nil persistedSnapshot:nil];
+	}
+	else
+		return nil;
+}
+
 
 - (id)executeSaveRequest:(NSSaveChangesRequest *)request withContext:(nullable NSManagedObjectContext*)context error:(NSError **)error {
 	NSMutableDictionary* changedValues = [NSMutableDictionary new];
 	NSMutableSet* objects = [NSMutableSet new];
 	[objects unionSet:request.insertedObjects];
 	[objects unionSet:request.updatedObjects];
-	for (NSManagedObject* object in objects) {
-		NSDictionary* relationships = object.entity.relationshipsByName;
-		NSMutableDictionary* dic = [NSMutableDictionary new];
-		[object.changedValues enumerateKeysAndObjectsUsingBlock:^(NSString * _Nonnull key, id  _Nonnull obj, BOOL * _Nonnull stop) {
-			if (relationships[key]) {
-				obj = [[object valueForKey:key] valueForKey:@"objectID"] ?: [NSNull null];
-			}
-			else {
-				obj = [object valueForKey:key] ?: [NSNull null];
-			}
-			dic[key] = obj;
-		}];
-		changedValues[object.objectID] = dic;
-	}
 	
 	[_backingManagedObjectContext performBlockAndWait:^{
+		NSMutableArray* conflicts = [NSMutableArray new];
+		for (NSManagedObject* object in [objects setByAddingObjectsFromSet:request.deletedObjects]) {
+			CDRecord* record = [self.backingObjectsHelper recordWithObjectID:object.objectID];
+			NSMergeConflict* conflict = [self findConflictsInObject:object withRecord:record];
+			if (conflict)
+				[conflicts addObject:conflict];
+		}
+		
+		NSError* errorr = nil;
+		if (conflicts.count > 0) {
+			[self.mergePolicy resolveConflicts:conflicts error:&errorr];
+		}
+		
+		
+		for (NSManagedObject* object in objects) {
+			NSDictionary* relationships = object.entity.relationshipsByName;
+			NSMutableDictionary* dic = [NSMutableDictionary new];
+			[object.changedValues enumerateKeysAndObjectsUsingBlock:^(NSString * _Nonnull key, id  _Nonnull obj, BOOL * _Nonnull stop) {
+				if (relationships[key]) {
+					obj = [[object valueForKey:key] valueForKey:@"objectID"] ?: [NSNull null];
+				}
+				else {
+					obj = [object valueForKey:key] ?: [NSNull null];
+				}
+				dic[key] = obj;
+			}];
+			changedValues[object.objectID] = dic;
+		}
 		
 		CDTransaction* (^newChangeTransaction)(CDRecord*, NSString*, id) = ^(CDRecord* record, NSString* key, id value) {
 			CDTransaction* transaction = [NSEntityDescription insertNewObjectForEntityForName:@"CDTransaction" inManagedObjectContext:_backingManagedObjectContext];
 			transaction.record = record;
-			transaction.recordChangeTag = record.record.recordChangeTag;
 			transaction.version = record.version;
 			transaction.action = CDTransactionActionChange;
 			transaction.key = key;
@@ -275,8 +424,7 @@ typedef NS_ENUM(NSInteger, CDTransactionAction) {
 			}
 			record.version++;
 			
-			BOOL logTransactions = !objc_getAssociatedObject(object, @"CKRecord");
-			
+			CKRecord* ckRecord = objc_getAssociatedObject(object, @"CKRecord");
 			
 			[changedValues[object.objectID] enumerateKeysAndObjectsUsingBlock:^(NSString*  _Nonnull key, id  _Nonnull obj, BOOL * _Nonnull stop) {
 				NSPropertyDescription* property = properties[key];
@@ -286,7 +434,9 @@ typedef NS_ENUM(NSInteger, CDTransactionAction) {
 				if ([property isKindOfClass:[NSAttributeDescription class]]) {
 					NSAttributeDescription* attribute = (NSAttributeDescription*) property;
 					obj = [attribute transformedValue:obj];
-					if (logTransactions)
+					if (ckRecord) {
+					}
+					else
 						newChangeTransaction(record, key, obj);
 				}
 				else if ([property isKindOfClass:[NSRelationshipDescription class]]) {
@@ -303,25 +453,30 @@ typedef NS_ENUM(NSInteger, CDTransactionAction) {
 					else if (obj)
 						obj = [self.backingObjectsHelper backingObjectWithObjectID:obj];
 					
-					if ([relationship shouldSerialize] && logTransactions) {
-						id value;
-						if ([obj isKindOfClass:[NSSet class]]) {
-							NSMutableSet* references = [NSMutableSet new];
-							for (NSManagedObject* object in obj) {
-								CDRecord* record = [object valueForKey:@"CDRecord"];
-								[references addObject:record.recordID];
-							}
-							value = references;
+					if ([relationship shouldSerialize]) {
+						if (ckRecord) {
+							
 						}
 						else {
-							if (obj) {
-								CDRecord* record = [obj valueForKey:@"CDRecord"];
-								value = record.recordID;
+							id value;
+							if ([obj isKindOfClass:[NSSet class]]) {
+								NSMutableSet* references = [NSMutableSet new];
+								for (NSManagedObject* object in obj) {
+									CDRecord* record = [object valueForKey:@"CDRecord"];
+									[references addObject:record.recordID];
+								}
+								value = references;
 							}
-							else
-								value = nil;
+							else {
+								if (obj) {
+									CDRecord* record = [obj valueForKey:@"CDRecord"];
+									value = record.recordID;
+								}
+								else
+									value = nil;
+							}
+							newChangeTransaction(record, key, value);
 						}
-						newChangeTransaction(record, key, value);
 					}
 				}
 				[backingObject setValue:obj forKey:key];
@@ -343,7 +498,7 @@ typedef NS_ENUM(NSInteger, CDTransactionAction) {
 		}
 		if ([_backingManagedObjectContext hasChanges])
 			[_backingManagedObjectContext save:error];
-	//	[self push];
+	[self push];
 	}];
 	return @[];
 }
@@ -430,6 +585,42 @@ typedef NS_ENUM(NSInteger, CDTransactionAction) {
 //		[NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(pull) object:nil];
 //		[self performSelector:@selector(pull) withObject:nil afterDelay:1];
 //	}
+}
+
+#pragma mark - Pull/Push
+
+- (void) push {
+	if ([self iCloudIsAvailableForWriting]) {
+		@synchronized (self) {
+			if (self.pushing)
+				return;
+			self.pushing = YES;
+		}
+		CDPushOperation* operation = [[CDPushOperation alloc] initWithStore:self completionHandler:^(NSError *error, NSArray<CKRecord *> *conflicts) {
+			@synchronized (self) {
+				self.pushing = NO;
+			}
+		}];
+		[self.operationQueue addOperation:operation];
+	}
+}
+
+- (void) pull {
+	if ([self iCloudIsAvailableForReading]) {
+		@synchronized (self) {
+			if (self.pulling)
+				return;
+			self.pulling = YES;
+		}
+		CDPullOperation* operation = [[CDPullOperation alloc] initWithStore:self completionHandler:^(BOOL moreComing, NSError *error) {
+			@synchronized (self) {
+				self.pushing = NO;
+			}
+			if (moreComing)
+				[self pull];
+		}];
+		[self.operationQueue addOperation:operation];
+	}
 }
 
 @end

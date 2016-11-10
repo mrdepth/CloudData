@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="11542" systemVersion="16B2555" minimumToolsVersion="Automatic" sourceLanguage="Objective-C" userDefinedModelVersionIdentifier="">
+    <entity name="CDBrokenReference" representedClassName="CDBrokenReference" syncable="YES" codeGenerationType="class">
+        <attribute name="from" optional="YES" attributeType="String" syncable="YES"/>
+        <attribute name="name" optional="YES" attributeType="String" syncable="YES"/>
+        <attribute name="to" optional="YES" attributeType="String" syncable="YES"/>
+    </entity>
     <entity name="CDMetadata" representedClassName="CDMetadata" syncable="YES" codeGenerationType="class">
         <attribute name="serverChangeToken" optional="YES" attributeType="Transformable" customClassName="CKServerChangeToken" syncable="YES"/>
     </entity>
@@ -13,7 +18,6 @@
     <entity name="CDTransaction" representedClassName="CDTransaction" syncable="YES" codeGenerationType="class">
         <attribute name="action" optional="YES" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES" syncable="YES"/>
         <attribute name="key" optional="YES" attributeType="String" syncable="YES"/>
-        <attribute name="recordChangeTag" optional="YES" attributeType="String" syncable="YES"/>
         <attribute name="value" optional="YES" attributeType="Transformable" syncable="YES"/>
         <attribute name="version" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES" syncable="YES"/>
         <relationship name="record" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDRecord" inverseName="transactions" inverseEntity="CDRecord" syncable="YES"/>
@@ -21,6 +25,7 @@
     <elements>
         <element name="CDMetadata" positionX="-54" positionY="-9" width="128" height="60"/>
         <element name="CDRecord" positionX="-36" positionY="9" width="128" height="120"/>
-        <element name="CDTransaction" positionX="-18" positionY="27" width="128" height="135"/>
+        <element name="CDTransaction" positionX="-18" positionY="27" width="128" height="120"/>
+        <element name="CDBrokenReference" positionX="-27" positionY="72" width="128" height="90"/>
     </elements>
 </model>

@@ -37,9 +37,18 @@
 	return [[self.managedObjectContext executeFetchRequest:request error:nil] lastObject];
 }
 
+- (NSManagedObject*) backingObjectWithRecordID:(NSString*) recordID {
+	CDRecord* record = [self recordWithRecordID:recordID];
+	return [record valueForKey:record.recordType];
+}
+
 - (CDRecord*) recordWithObjectID:(NSManagedObjectID*) objectID {
+	return [self recordWithRecordID:[self.store referenceObjectForObjectID:objectID]];
+}
+
+- (CDRecord*) recordWithRecordID:(NSString*) recordID {
 	NSFetchRequest* request = [NSFetchRequest fetchRequestWithEntityName:@"CDRecord"];
-	request.predicate = [NSPredicate predicateWithFormat:@"recordID == %@", [self.store referenceObjectForObjectID:objectID]];
+	request.predicate = [NSPredicate predicateWithFormat:@"recordID == %@", recordID];
 	request.fetchLimit = 1;
 	return [[self.managedObjectContext executeFetchRequest:request error:nil] lastObject];
 }

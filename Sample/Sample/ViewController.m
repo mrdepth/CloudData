@@ -27,9 +27,9 @@
 	self.managedObjectModel = [[NSManagedObjectModel alloc] initWithContentsOfURL:[[NSBundle mainBundle] URLForResource:@"Sample" withExtension:@"momd"]];
 	self.persistentStoreCoordinator = [[NSPersistentStoreCoordinator alloc] initWithManagedObjectModel:self.managedObjectModel];
 	NSString* path = [NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, YES)[0] stringByAppendingPathComponent:@"test.sqlite"];
-	[[NSFileManager defaultManager] removeItemAtPath:path error:nil];
+//	[[NSFileManager defaultManager] removeItemAtPath:path error:nil];
 	NSError* error;
-	[self.persistentStoreCoordinator addPersistentStoreWithType:CDCloudStoreType configuration:nil URL:[NSURL fileURLWithPath:path] options:nil error:&error];
+	[self.persistentStoreCoordinator addPersistentStoreWithType:CDCloudStoreType configuration:nil URL:[NSURL fileURLWithPath:path] options:@{CDCloudStoreOptionMergePolicyType:@(NSMergeByPropertyObjectTrumpMergePolicyType)} error:&error];
 
 //	[[NSFileManager defaultManager] createDirectoryAtPath:[path stringByDeletingLastPathComponent] withIntermediateDirectories:YES attributes:nil error:nil];
 //	[self.persistentStoreCoordinator addPersistentStoreWithType:NSSQLiteStoreType configuration:nil URL:[NSURL fileURLWithPath:path] options:nil error:&error];
@@ -44,29 +44,32 @@
 	[self.results performFetch:nil];
 	
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(didSave:) name:NSManagedObjectContextDidSaveNotification object:nil];
-	
+	/*
 	NSManagedObjectContext* other = [[NSManagedObjectContext alloc] initWithConcurrencyType:NSMainQueueConcurrencyType];
 	other.persistentStoreCoordinator = self.persistentStoreCoordinator;
 	
 	Parent* parent = [NSEntityDescription insertNewObjectForEntityForName:@"Parent" inManagedObjectContext:self.managedObjectContext];
-	parent.name = @"original";
+	parent.children = [NSSet setWithObject:[NSEntityDescription insertNewObjectForEntityForName:@"Child" inManagedObjectContext:self.managedObjectContext]];
 	[self.managedObjectContext save:nil];
 	
 	Parent* parent2 = [other objectWithID:parent.objectID];
-	parent.name = @"from 1";
-	parent2.name = @"from 2";
-	
+	parent.children = [NSSet setWithObject:[NSEntityDescription insertNewObjectForEntityForName:@"Child" inManagedObjectContext:self.managedObjectContext]];
+	parent2.children = [NSSet setWithObject:[NSEntityDescription insertNewObjectForEntityForName:@"Child" inManagedObjectContext:parent2.managedObjectContext]];
 	[self.managedObjectContext save:nil];
 	
 	error = nil;
-	[other save:&error];
-	NSLog(@"%@", error.userInfo[@"conflictList"][0]);
+	[other save:&error];//NSManagedObjectMergeError
+	for (NSMergeConflict* conflict in error.userInfo[@"conflictList"])
+		NSLog(@"%@", conflict);
 	NSMergeConflict* conflict = error.userInfo[@"conflictList"][0];
-	NSMergePolicy* policy = NSMergeByPropertyStoreTrumpMergePolicy;
+	NSMergePolicy* policy = NSMergeByPropertyObjectTrumpMergePolicy;
 	BOOL b = [policy resolveConflicts:error.userInfo[@"conflictList"] error:&error];
 	error = nil;
 	[other save:&error];
-	NSLog(@"%@", error);
+	[self.managedObjectContext refreshAllObjects];
+	[other refreshAllObjects];
+	NSLog(@"%@", [parent.children allObjects]);
+	NSLog(@"%@", [parent2.children allObjects]);*/
 }
 
 
@@ -105,6 +108,9 @@
 
 - (void) tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
 	[tableView deselectRowAtIndexPath:indexPath animated:YES];
+	Parent* object = [self.results objectAtIndexPath:indexPath];
+	object.name = [NSUUID UUID].UUIDString;
+	[self.managedObjectContext save:nil];
 }
 
 - (UITableViewCellEditingStyle) tableView:(UITableView *)tableView editingStyleForRowAtIndexPath:(NSIndexPath *)indexPath {

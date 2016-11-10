@@ -7,7 +7,12 @@
 //
 
 #import <Foundation/Foundation.h>
+#import "CDOperation.h"
 
 @interface CDOperationQueue : NSObject
+@property (nonatomic, assign) BOOL allowsWWAN;
+
+- (void) addOperation:(CDOperation*) operation;
+- (void) addOperationWithBlock:(void(^)(CDOperation* operation)) block;
 
 @end

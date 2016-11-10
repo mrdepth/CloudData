@@ -15,7 +15,9 @@
 - (id) initWithStore:(CDCloudStore*) store managedObjectContext:(NSManagedObjectContext*) managedObjectContext;
 
 - (NSManagedObject*) backingObjectWithObjectID:(NSManagedObjectID*) objectID;
+- (NSManagedObject*) backingObjectWithRecordID:(NSString*) recordID;
 - (CDRecord*) recordWithObjectID:(NSManagedObjectID*) objectID;
+- (CDRecord*) recordWithRecordID:(NSString*) recordID;
 - (NSManagedObjectID*) objectIDWithBackingObject:(NSManagedObject*) object;
 
 
