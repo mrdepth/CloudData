@@ -9,8 +9,10 @@
 #import "ViewController.h"
 #import "Parent+CoreDataClass.h"
 #import "Child+CoreDataClass.h"
+#import <objc/runtime.h>
 @import CoreData;
 @import CloudData;
+@import CloudKit;
 
 @interface ViewController ()<NSFetchedResultsControllerDelegate>
 @property (nonatomic, strong) NSPersistentStoreCoordinator* persistentStoreCoordinator;
@@ -44,32 +46,32 @@
 	[self.results performFetch:nil];
 	
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(didSave:) name:NSManagedObjectContextDidSaveNotification object:nil];
-	/*
+	
+	//return;
 	NSManagedObjectContext* other = [[NSManagedObjectContext alloc] initWithConcurrencyType:NSMainQueueConcurrencyType];
 	other.persistentStoreCoordinator = self.persistentStoreCoordinator;
 	
 	Parent* parent = [NSEntityDescription insertNewObjectForEntityForName:@"Parent" inManagedObjectContext:self.managedObjectContext];
-	parent.children = [NSSet setWithObject:[NSEntityDescription insertNewObjectForEntityForName:@"Child" inManagedObjectContext:self.managedObjectContext]];
+	parent.name = @"original";
 	[self.managedObjectContext save:nil];
 	
 	Parent* parent2 = [other objectWithID:parent.objectID];
-	parent.children = [NSSet setWithObject:[NSEntityDescription insertNewObjectForEntityForName:@"Child" inManagedObjectContext:self.managedObjectContext]];
-	parent2.children = [NSSet setWithObject:[NSEntityDescription insertNewObjectForEntityForName:@"Child" inManagedObjectContext:parent2.managedObjectContext]];
+	//parent.name = @"name 1";
+	parent2.name = @"name 2";
 	[self.managedObjectContext save:nil];
 	
 	error = nil;
-	[other save:&error];//NSManagedObjectMergeError
+	//[other save:&error];//NSManagedObjectMergeError
+	error = [NSError errorWithDomain:@"" code:0 userInfo:@{@"conflictList":@[[[NSMergeConflict alloc] initWithSource:parent2 newVersion:2 oldVersion:1 cachedSnapshot:@{@"name":@"original"} persistedSnapshot:nil]]}];
 	for (NSMergeConflict* conflict in error.userInfo[@"conflictList"])
 		NSLog(@"%@", conflict);
 	NSMergeConflict* conflict = error.userInfo[@"conflictList"][0];
-	NSMergePolicy* policy = NSMergeByPropertyObjectTrumpMergePolicy;
+	NSMergePolicy* policy = NSMergeByPropertyStoreTrumpMergePolicy;
 	BOOL b = [policy resolveConflicts:error.userInfo[@"conflictList"] error:&error];
 	error = nil;
 	[other save:&error];
 	[self.managedObjectContext refreshAllObjects];
 	[other refreshAllObjects];
-	NSLog(@"%@", [parent.children allObjects]);
-	NSLog(@"%@", [parent2.children allObjects]);*/
 }
 
 
@@ -109,7 +111,10 @@
 - (void) tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
 	[tableView deselectRowAtIndexPath:indexPath animated:YES];
 	Parent* object = [self.results objectAtIndexPath:indexPath];
-	object.name = [NSUUID UUID].UUIDString;
+	//object.name = [NSUUID UUID].UUIDString;
+	object.name = @"new name";
+	CKRecord* record = [[CKRecord alloc] initWithRecordType:@"Parent"];
+	objc_setAssociatedObject(object, @"CKRecord", record, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 	[self.managedObjectContext save:nil];
 }
 

@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1234ABF31DD50B7400B5595A /* NSManagedObject+CD.h in Headers */ = {isa = PBXBuildFile; fileRef = 1234ABF11DD50B7400B5595A /* NSManagedObject+CD.h */; };
+		1234ABF41DD50B7400B5595A /* NSManagedObject+CD.m in Sources */ = {isa = PBXBuildFile; fileRef = 1234ABF21DD50B7400B5595A /* NSManagedObject+CD.m */; };
+		1234ABF71DD50E4900B5595A /* CKRecord+CD.h in Headers */ = {isa = PBXBuildFile; fileRef = 1234ABF51DD50E4900B5595A /* CKRecord+CD.h */; };
+		1234ABF81DD50E4900B5595A /* CKRecord+CD.m in Sources */ = {isa = PBXBuildFile; fileRef = 1234ABF61DD50E4900B5595A /* CKRecord+CD.m */; };
 		12943C261DD353C90037F2DE /* CloudData.h in Headers */ = {isa = PBXBuildFile; fileRef = 12943C241DD353C90037F2DE /* CloudData.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		12943C301DD353DE0037F2DE /* CDCloudStore.h in Headers */ = {isa = PBXBuildFile; fileRef = 12943C2C1DD353DE0037F2DE /* CDCloudStore.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		12943C311DD353DE0037F2DE /* CDCloudStore.m in Sources */ = {isa = PBXBuildFile; fileRef = 12943C2D1DD353DE0037F2DE /* CDCloudStore.m */; };
@@ -34,6 +38,10 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		1234ABF11DD50B7400B5595A /* NSManagedObject+CD.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSManagedObject+CD.h"; sourceTree = "<group>"; };
+		1234ABF21DD50B7400B5595A /* NSManagedObject+CD.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "NSManagedObject+CD.m"; sourceTree = "<group>"; };
+		1234ABF51DD50E4900B5595A /* CKRecord+CD.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "CKRecord+CD.h"; sourceTree = "<group>"; };
+		1234ABF61DD50E4900B5595A /* CKRecord+CD.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "CKRecord+CD.m"; sourceTree = "<group>"; };
 		12943C211DD353C90037F2DE /* CloudData.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = CloudData.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		12943C241DD353C90037F2DE /* CloudData.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CloudData.h; sourceTree = "<group>"; };
 		12943C251DD353C90037F2DE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -109,6 +117,10 @@
 				12943C431DD369970037F2DE /* NSAttributeDescription+CD.m */,
 				12B1417E1DD39D1400FBC529 /* NSRelationshipDescription+CD.h */,
 				12B1417F1DD39D1400FBC529 /* NSRelationshipDescription+CD.m */,
+				1234ABF11DD50B7400B5595A /* NSManagedObject+CD.h */,
+				1234ABF21DD50B7400B5595A /* NSManagedObject+CD.m */,
+				1234ABF51DD50E4900B5595A /* CKRecord+CD.h */,
+				1234ABF61DD50E4900B5595A /* CKRecord+CD.m */,
 				12943C461DD36DDF0037F2DE /* CDRecordTransformer.h */,
 				12943C471DD36DDF0037F2DE /* CDRecordTransformer.m */,
 				12943C241DD353C90037F2DE /* CloudData.h */,
@@ -148,8 +160,10 @@
 				12943C391DD354B80037F2DE /* CDOperationQueue.h in Headers */,
 				12B141801DD39D1400FBC529 /* NSRelationshipDescription+CD.h in Headers */,
 				12943C481DD36DDF0037F2DE /* CDRecordTransformer.h in Headers */,
+				1234ABF71DD50E4900B5595A /* CKRecord+CD.h in Headers */,
 				12F7E7E21DD453CB00C36FFB /* CDOperation.h in Headers */,
 				12943C3D1DD35FEE0037F2DE /* NSUUID+CD.h in Headers */,
+				1234ABF31DD50B7400B5595A /* NSManagedObject+CD.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -232,6 +246,8 @@
 				12B1417D1DD3929300FBC529 /* CDBackingObjectHelper.m in Sources */,
 				12943C311DD353DE0037F2DE /* CDCloudStore.m in Sources */,
 				12E7F0C61DD486C40079D5D2 /* CDPullOperation.m in Sources */,
+				1234ABF41DD50B7400B5595A /* NSManagedObject+CD.m in Sources */,
+				1234ABF81DD50E4900B5595A /* CKRecord+CD.m in Sources */,
 				12943C321DD353DE0037F2DE /* CloudData.xcdatamodeld in Sources */,
 				12F7E7E71DD4557D00C36FFB /* CDReachability.m in Sources */,
 			);

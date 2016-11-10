@@ -13,9 +13,11 @@
 #import "CDOperationQueue.h"
 #import "CDBackingObjectHelper.h"
 #import "CDRecord+CoreDataClass.h"
-#import "CDTransaction+CoreDataClass.h"
+#import "CDRecordCache+CoreDataClass.h"
 #import "NSAttributeDescription+CD.h"
 #import "NSRelationshipDescription+CD.h"
+#import "NSManagedObject+CD.h"
+#import "CKRecord+CD.h"
 
 typedef NS_ENUM(NSInteger, CDTransactionAction) {
 	CDTransactionActionChange,

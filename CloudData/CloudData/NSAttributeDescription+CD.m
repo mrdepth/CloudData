@@ -59,4 +59,8 @@
 	return value;
 }
 
+- (id<CKRecordValue>) CKRecordValueFromBackingObject:(NSManagedObject*) object {
+	return [self reverseTransformValue:[object valueForKey:self.name]];
+}
+
 @end

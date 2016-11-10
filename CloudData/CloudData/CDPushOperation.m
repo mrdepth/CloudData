@@ -9,13 +9,15 @@
 #import "CDPushOperation.h"
 #import "CDCloudStore.h"
 #import "CDCloudStore+Protected.h"
+#import "CKRecord+CD.h"
 
 @implementation CDPushOperation {
 	CDCloudStore* _store;
 	void(^_completion)(NSError* error, NSArray<CKRecord*>* conflicts);
 	NSManagedObjectContext* _backingManagedObjectContext;
 	CKModifyRecordsOperation* _databaseOperation;
-	NSDictionary<CKRecordID*, NSArray<CDTransaction*>*>* _transactions;
+	NSMutableDictionary<CKRecordID*, CDRecord*>* _cache;
+	//NSDictionary<CKRecordID*, NSArray<CDTransaction*>*>* _transactions;
 }
 
 - (instancetype) initWithStore:(CDCloudStore*) store completionHandler:(void(^)(NSError* error, NSArray<CKRecord*>* conflicts)) block {
@@ -31,6 +33,71 @@
 
 - (void) main {
 	[_backingManagedObjectContext performBlock:^{
+		[self prepareDatabaseOperation];
+		if (_databaseOperation) {
+			dispatch_group_t dispatchGroup = dispatch_group_create();
+			
+			NSMutableArray* conflicts = [NSMutableArray new];
+			_databaseOperation.perRecordCompletionBlock = ^(CKRecord * _Nullable record, NSError * _Nullable error) {
+				if (error) {
+					if ([error.domain isEqualToString:CKErrorDomain]) {
+						switch (error.code) {
+							case CKErrorServerRecordChanged:
+								[conflicts addObject:record];
+								break;
+							case CKErrorNetworkUnavailable:
+							case CKErrorNetworkFailure:
+							case CKErrorServiceUnavailable:
+							case CKErrorRequestRateLimited:
+								break;
+							default:
+								NSLog(@"%@", error);
+								dispatch_group_enter(dispatchGroup);
+								[_backingManagedObjectContext performBlock:^{
+									CDRecord* cdRecord = _cache[record.recordID];
+									cdRecord.cache.version = cdRecord.version;
+									dispatch_group_leave(dispatchGroup);
+								}];
+								break;
+						}
+					}
+				}
+				else {
+					dispatch_group_enter(dispatchGroup);
+					[_backingManagedObjectContext performBlock:^{
+						CDRecord* cdRecord = _cache[record.recordID];
+						cdRecord.cache.cachedRecord = record;
+						cdRecord.cache.version = cdRecord.version;
+						dispatch_group_leave(dispatchGroup);
+					}];
+				}
+			};
+			
+			_databaseOperation.modifyRecordsCompletionBlock = ^(NSArray<CKRecord *> * _Nullable savedRecords, NSArray<CKRecordID *> * _Nullable deletedRecordIDs, NSError * _Nullable operationError) {
+				dispatch_group_notify(dispatchGroup, dispatch_get_main_queue(), ^{
+					[_backingManagedObjectContext performBlock:^{
+						for (CKRecordID* recordID in deletedRecordIDs) {
+							CDRecord* cdRecord = _cache[recordID];
+							[_backingManagedObjectContext deleteObject:cdRecord];
+						}
+						if ([_backingManagedObjectContext hasChanges])
+							[_backingManagedObjectContext save:nil];
+						
+						_completion(operationError, conflicts.count > 0 ? conflicts : nil);
+						[self finishWithError:operationError];
+					}];
+				});
+			};
+			[_store.database addOperation:_databaseOperation];
+		}
+		else {
+			if ([_backingManagedObjectContext hasChanges])
+				[_backingManagedObjectContext save:nil];
+			[self finishWithError:nil];
+		}
+	}];
+	
+	/*[_backingManagedObjectContext performBlock:^{
 		[self prepareDatabaseOperation];
 		if (_databaseOperation) {
 			dispatch_group_t dispatchGroup = dispatch_group_create();
@@ -100,19 +167,46 @@
 				[_backingManagedObjectContext save:nil];
 			[self finishWithError:nil];
 		}
-	}];
+	}];*/
 }
 
 - (void) prepareDatabaseOperation {
-	NSFetchRequest* request = [NSFetchRequest fetchRequestWithEntityName:@"CDTransaction"];
-	request.sortDescriptors = @[[NSSortDescriptor sortDescriptorWithKey:@"record.recordID" ascending:YES], [NSSortDescriptor sortDescriptorWithKey:@"version" ascending:YES]];
+	NSFetchRequest* request = [NSFetchRequest fetchRequestWithEntityName:@"CDRecord"];
+	request.predicate = [NSPredicate predicateWithFormat:@"version > cache.version OR version == 0"];
+	//request.sortDescriptors = @[[NSSortDescriptor sortDescriptorWithKey:@"record.recordID" ascending:YES], [NSSortDescriptor sortDescriptorWithKey:@"version" ascending:YES]];
 	
-	NSFetchedResultsController* results = [[NSFetchedResultsController alloc] initWithFetchRequest:request managedObjectContext:_backingManagedObjectContext sectionNameKeyPath:@"record.recordID" cacheName:nil];
+	NSMutableArray<CKRecord*>* recordsToSave = [NSMutableArray new];
+	NSMutableArray<CKRecordID*>* recordsToDelete = [NSMutableArray new];
+	NSMutableDictionary* cache = [NSMutableDictionary new];
+	for (CDRecord* record in [_backingManagedObjectContext executeFetchRequest:request error:nil]) {
+		if (record.version == 0 && record.cache.version > 0) {
+			cache[record.cache.cachedRecord.recordID] = record;
+			[recordsToDelete addObject:record.cache.cachedRecord.recordID];
+		}
+		else {
+			NSManagedObject* backingObject = [record valueForKey:record.recordType];
+			NSDictionary* changedValues = [record.cache.cachedRecord changedValuesWithObject:backingObject];
+			if (changedValues.count > 0) {
+				cache[record.cache.cachedRecord.recordID] = record;
+				CKRecord* ckRecord = [record.cache.cachedRecord copy];
+				[changedValues enumerateKeysAndObjectsUsingBlock:^(id  _Nonnull key, id  _Nonnull obj, BOOL * _Nonnull stop) {
+					ckRecord[key] = obj;
+				}];
+				[recordsToSave addObject:ckRecord];
+			}
+		}
+	}
+	
+	if (recordsToSave.count > 0 || recordsToDelete.count > 0) {
+		_databaseOperation = [[CKModifyRecordsOperation alloc] initWithRecordsToSave:recordsToSave recordIDsToDelete:recordsToDelete];
+		_cache = cache;
+}
+	
+	/*NSFetchedResultsController* results = [[NSFetchedResultsController alloc] initWithFetchRequest:request managedObjectContext:_backingManagedObjectContext sectionNameKeyPath:@"record.recordID" cacheName:nil];
 	[results performFetch:nil];
 	
 	NSMutableDictionary<CKRecordID*, CKRecord*>* recordsToSave = [NSMutableDictionary new];
 	NSMutableDictionary<CKRecordID*, CDRecord*>* recordsToDelete = [NSMutableDictionary new];
-	NSMutableDictionary<CKRecordID*, NSArray<CDTransaction*>*>* transactionsMap = [NSMutableDictionary new];
 	
 	CKRecordZoneID* recordZoneID = _store.recordZoneID;
 	
@@ -182,7 +276,7 @@
 	if (recordsToSave.count > 0 || recordsToDelete.count > 0) {
 		_databaseOperation = [[CKModifyRecordsOperation alloc] initWithRecordsToSave:[recordsToSave allValues] recordIDsToDelete:[recordsToDelete allKeys]];
 		_transactions = transactionsMap;
-	}
+	}*/
 }
 
 @end

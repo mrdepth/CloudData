@@ -8,8 +8,10 @@
 
 #import <CoreData/CoreData.h>
 
+@class CKReference, CKRecordZoneID;
 @interface NSRelationshipDescription (CD)
 
 - (BOOL) shouldSerialize;
+- (id) CKReferenceFromBackingObject:(NSManagedObject*) object recordZoneID:(CKRecordZoneID*) recordZoneID;
 
 @end

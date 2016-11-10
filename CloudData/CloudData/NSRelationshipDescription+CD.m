@@ -7,6 +7,8 @@
 //
 
 #import "NSRelationshipDescription+CD.h"
+#import "CDCloudStore.h"
+#import "CDCloudStore+Protected.h"
 
 @implementation NSRelationshipDescription (CD)
 
@@ -33,6 +35,31 @@
 	}
 	else
 		return YES;
+}
+
+- (id) CKReferenceFromBackingObject:(NSManagedObject*) object recordZoneID:(CKRecordZoneID*) recordZoneID {
+	__block id result = nil;
+	[object.managedObjectContext performBlockAndWait:^{
+		CKReferenceAction action = self.inverseRelationship.deleteRule == NSCascadeDeleteRule ? CKReferenceActionDeleteSelf : CKReferenceActionNone;
+
+		id value = [object valueForKey:self.name];
+		CDCloudStore* store = (CDCloudStore*) object.objectID.persistentStore;
+		if ([self isToMany]) {
+			NSMutableArray* references = [NSMutableArray new];
+			for (NSManagedObject* object in value) {
+				CDRecord* record = [object valueForKey:@"CDRecord"];
+				CKReference* reference = [[CKReference alloc] initWithRecordID:[[CKRecordID alloc] initWithRecordName:record.recordID zoneID:recordZoneID] action:action];
+				[references addObject:reference];
+			}
+			result = references;
+			return;
+		}
+		else {
+			CDRecord* record = [value valueForKey:@"CDRecord"];
+			result = [[CKReference alloc] initWithRecordID:[[CKRecordID alloc] initWithRecordName:record.recordID zoneID:recordZoneID] action:action];
+		}
+	}];
+	return result;
 }
 
 @end

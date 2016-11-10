@@ -6,26 +6,25 @@
         <attribute name="to" optional="YES" attributeType="String" syncable="YES"/>
     </entity>
     <entity name="CDMetadata" representedClassName="CDMetadata" syncable="YES" codeGenerationType="class">
+        <attribute name="recordZoneID" optional="YES" attributeType="Transformable" customClassName="CKRecordZoneID" syncable="YES"/>
         <attribute name="serverChangeToken" optional="YES" attributeType="Transformable" customClassName="CKServerChangeToken" syncable="YES"/>
     </entity>
     <entity name="CDRecord" representedClassName="CDRecord" syncable="YES" codeGenerationType="class">
-        <attribute name="record" optional="YES" attributeType="Transformable" valueTransformerName="CDRecordTransformer" customClassName="CKRecord" syncable="YES"/>
-        <attribute name="recordID" optional="YES" attributeType="String" indexed="YES" syncable="YES"/>
-        <attribute name="recordType" optional="YES" attributeType="String" syncable="YES"/>
-        <attribute name="version" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES" syncable="YES"/>
-        <relationship name="transactions" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="CDTransaction" inverseName="record" inverseEntity="CDTransaction" syncable="YES"/>
+        <attribute name="changedKeys" optional="YES" attributeType="String" syncable="YES"/>
+        <attribute name="recordID" attributeType="String" indexed="YES" syncable="YES"/>
+        <attribute name="recordType" attributeType="String" syncable="YES"/>
+        <attribute name="version" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES" syncable="YES"/>
+        <relationship name="cache" optional="YES" maxCount="1" deletionRule="Cascade" destinationEntity="CDRecordCache" inverseName="record" inverseEntity="CDRecordCache" syncable="YES"/>
     </entity>
-    <entity name="CDTransaction" representedClassName="CDTransaction" syncable="YES" codeGenerationType="class">
-        <attribute name="action" optional="YES" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES" syncable="YES"/>
-        <attribute name="key" optional="YES" attributeType="String" syncable="YES"/>
-        <attribute name="value" optional="YES" attributeType="Transformable" syncable="YES"/>
-        <attribute name="version" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES" syncable="YES"/>
-        <relationship name="record" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDRecord" inverseName="transactions" inverseEntity="CDRecord" syncable="YES"/>
+    <entity name="CDRecordCache" representedClassName="CDRecordCache" syncable="YES" codeGenerationType="class">
+        <attribute name="cachedRecord" attributeType="Transformable" valueTransformerName="" customClassName="CKRecord" syncable="YES"/>
+        <attribute name="version" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES" syncable="YES"/>
+        <relationship name="record" optional="YES" maxCount="1" deletionRule="Deny" destinationEntity="CDRecord" inverseName="cache" inverseEntity="CDRecord" syncable="YES"/>
     </entity>
     <elements>
-        <element name="CDMetadata" positionX="-54" positionY="-9" width="128" height="60"/>
-        <element name="CDRecord" positionX="-36" positionY="9" width="128" height="120"/>
-        <element name="CDTransaction" positionX="-18" positionY="27" width="128" height="120"/>
         <element name="CDBrokenReference" positionX="-27" positionY="72" width="128" height="90"/>
+        <element name="CDMetadata" positionX="-54" positionY="-9" width="128" height="75"/>
+        <element name="CDRecord" positionX="-36" positionY="9" width="128" height="120"/>
+        <element name="CDRecordCache" positionX="-27" positionY="63" width="128" height="90"/>
     </elements>
 </model>

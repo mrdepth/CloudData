@@ -31,31 +31,49 @@
 }
 
 - (NSManagedObject*) backingObjectWithObjectID:(NSManagedObjectID*) objectID {
-	NSFetchRequest* request = [NSFetchRequest fetchRequestWithEntityName:objectID.entity.name];
-	request.predicate = [NSPredicate predicateWithFormat:@"CDRecord.recordID == %@", [self.store referenceObjectForObjectID:objectID]];
-	request.fetchLimit = 1;
-	return [[self.managedObjectContext executeFetchRequest:request error:nil] lastObject];
+	if (objectID) {
+		NSFetchRequest* request = [NSFetchRequest fetchRequestWithEntityName:objectID.entity.name];
+		request.predicate = [NSPredicate predicateWithFormat:@"CDRecord.recordID == %@", [self.store referenceObjectForObjectID:objectID]];
+		request.fetchLimit = 1;
+		return [[self.managedObjectContext executeFetchRequest:request error:nil] lastObject];
+	}
+	else
+		return nil;
 }
 
 - (NSManagedObject*) backingObjectWithRecordID:(NSString*) recordID {
-	CDRecord* record = [self recordWithRecordID:recordID];
-	return [record valueForKey:record.recordType];
+	if (recordID) {
+		CDRecord* record = [self recordWithRecordID:recordID];
+		return [record valueForKey:record.recordType];
+	}
+	else
+		return nil;
 }
 
 - (CDRecord*) recordWithObjectID:(NSManagedObjectID*) objectID {
-	return [self recordWithRecordID:[self.store referenceObjectForObjectID:objectID]];
+	if (objectID)
+		return [self recordWithRecordID:[self.store referenceObjectForObjectID:objectID]];
+	else
+		return nil;
 }
 
 - (CDRecord*) recordWithRecordID:(NSString*) recordID {
-	NSFetchRequest* request = [NSFetchRequest fetchRequestWithEntityName:@"CDRecord"];
-	request.predicate = [NSPredicate predicateWithFormat:@"recordID == %@", recordID];
-	request.fetchLimit = 1;
-	return [[self.managedObjectContext executeFetchRequest:request error:nil] lastObject];
+	if (recordID) {
+		NSFetchRequest* request = [NSFetchRequest fetchRequestWithEntityName:@"CDRecord"];
+		request.predicate = [NSPredicate predicateWithFormat:@"recordID == %@", recordID];
+		request.fetchLimit = 1;
+		return [[self.managedObjectContext executeFetchRequest:request error:nil] lastObject];
+	}
+	else
+		return nil;
 }
 
 - (NSManagedObjectID*) objectIDWithBackingObject:(NSManagedObject*) object {
 	CDRecord* record = [object valueForKey:@"CDRecord"];
-	return [self.store newObjectIDForEntity:self.store.entities[object.entity.name] referenceObject:record.recordID];
+	if (record)
+		return [self.store newObjectIDForEntity:self.store.entities[object.entity.name] referenceObject:record.recordID];
+	else
+		return nil;
 }
 
 @end
