@@ -31,7 +31,7 @@
 	NSString* path = [NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, YES)[0] stringByAppendingPathComponent:@"test.sqlite"];
 //	[[NSFileManager defaultManager] removeItemAtPath:path error:nil];
 	NSError* error;
-	[self.persistentStoreCoordinator addPersistentStoreWithType:CDCloudStoreType configuration:nil URL:[NSURL fileURLWithPath:path] options:@{CDCloudStoreOptionMergePolicyType:@(NSMergeByPropertyObjectTrumpMergePolicyType)} error:&error];
+	[self.persistentStoreCoordinator addPersistentStoreWithType:CDCloudStoreType configuration:nil URL:[NSURL fileURLWithPath:path] options:@{CDCloudStoreOptionMergePolicyType:@(NSMergeByPropertyStoreTrumpMergePolicyType)} error:&error];
 
 //	[[NSFileManager defaultManager] createDirectoryAtPath:[path stringByDeletingLastPathComponent] withIntermediateDirectories:YES attributes:nil error:nil];
 //	[self.persistentStoreCoordinator addPersistentStoreWithType:NSSQLiteStoreType configuration:nil URL:[NSURL fileURLWithPath:path] options:nil error:&error];
@@ -47,13 +47,26 @@
 	
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(didSave:) name:NSManagedObjectContextDidSaveNotification object:nil];
 	
-	//return;
+	/*//return;
 	NSManagedObjectContext* other = [[NSManagedObjectContext alloc] initWithConcurrencyType:NSMainQueueConcurrencyType];
 	other.persistentStoreCoordinator = self.persistentStoreCoordinator;
-	
-	Parent* parent = [NSEntityDescription insertNewObjectForEntityForName:@"Parent" inManagedObjectContext:self.managedObjectContext];
-	parent.name = @"original";
-	[self.managedObjectContext save:nil];
+	Parent* parent;
+	//Parent* parent = [NSEntityDescription insertNewObjectForEntityForName:@"Parent" inManagedObjectContext:self.managedObjectContext];
+	//parent = [[self.managedObjectContext executeFetchRequest:[Parent fetchRequest] error:nil] lastObject];
+	NSManagedObjectID* objectID = [self.persistentStoreCoordinator managedObjectIDForURIRepresentation:[NSURL URLWithString:@"x-coredata://32EE7420-95B3-418C-B665-0A6FF68AE2AF/Parent/pidC3291DEB-3EFA-4238-BA15-6E37D9AA53F0"]];
+	objc_setAssociatedObject(self.managedObjectContext, @"_test", @"123", OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+	parent = [self.managedObjectContext existingObjectWithID:objectID error:nil];
+	if (!parent) {
+		parent = [NSEntityDescription insertNewObjectForEntityForName:@"Parent" inManagedObjectContext:self.managedObjectContext];
+		parent.name = @"before";
+	}
+	else
+		parent.name = @"after";
+
+	//parent.name = @"original";
+	//Child* child = [NSEntityDescription insertNewObjectForEntityForName:@"Child" inManagedObjectContext:self.managedObjectContext];
+	[self.managedObjectContext save:&error];
+	return;
 	
 	Parent* parent2 = [other objectWithID:parent.objectID];
 	//parent.name = @"name 1";
@@ -71,7 +84,7 @@
 	error = nil;
 	[other save:&error];
 	[self.managedObjectContext refreshAllObjects];
-	[other refreshAllObjects];
+	[other refreshAllObjects];*/
 }
 
 
@@ -111,10 +124,7 @@
 - (void) tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
 	[tableView deselectRowAtIndexPath:indexPath animated:YES];
 	Parent* object = [self.results objectAtIndexPath:indexPath];
-	//object.name = [NSUUID UUID].UUIDString;
-	object.name = @"new name";
-	CKRecord* record = [[CKRecord alloc] initWithRecordType:@"Parent"];
-	objc_setAssociatedObject(object, @"CKRecord", record, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+	object.name = [NSUUID UUID].UUIDString;
 	[self.managedObjectContext save:nil];
 }
 

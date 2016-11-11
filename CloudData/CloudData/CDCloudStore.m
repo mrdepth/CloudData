@@ -9,10 +9,13 @@
 #import "CDCloudStore.h"
 #import "NSUUID+CD.h"
 #import <objc/runtime.h>
+#import <UIKit/UIKit.h>
 #import "CDCloudStore+Protected.h"
 #import "CDPushOperation.h"
 #import "CDPullOperation.h"
 #import "CDMetadata+CoreDataClass.h"
+#import "CDManagedObjectContext.h"
+#import "CKRecord+CD.h"
 
 
 NSString * const CDCloudStoreType = @"CDCloudStore";
@@ -23,16 +26,48 @@ NSString * const CDCloudStoreOptionRecordZoneKey = @"CDCloudStoreOptionRecordZon
 NSString * const CDCloudStoreOptionMergePolicyType = @"CDCloudStoreOptionMergePolicyType";
 
 NSString * const CDDidReceiveRemoteNotification = @"CDDidReceiveRemoteNotification";
+NSString * const CDCloudStoreDidInitializeCloudAccountNotification = @"CDCloudStoreDidInitializeCloudAccountNotification";
+NSString * const CDCloudStoreDidFailtToInitializeCloudAccountNotification = @"CDCloudStoreDidFailtToInitializeCloudAccountNotification";
+NSString * const CDCloudStoreDidStartCloudImportNotification = @"CDCloudStoreDidStartCloudImportNotification";
+NSString * const CDCloudStoreDidFinishCloudImportNotification = @"CDCloudStoreDidFinishCloudImportNotification";
+NSString * const CDCloudStoreDidFailCloudImportNotification = @"CDCloudStoreDidFailCloudImportNotification";
+
+NSString * const CDErrorKey;
+
 
 NSString * const CDSubscriptionID = @"autoUpdate";
+
+@interface CDManagedObjectContext()
+@property (nonatomic, assign) BOOL loadFromCache;
+@end
+
+@interface MyNode : NSIncrementalStoreNode
+
+@end
+
+@implementation MyNode
+
+- (void) updateWithValues:(NSDictionary<NSString *,id> *)values version:(uint64_t)version {
+	[super updateWithValues:values version:version];
+}
+
+@end
+
 
 @interface CDCloudStore()
 @property (nonatomic, assign, getter = isPushing) BOOL pushing;
 @property (nonatomic, assign, getter = isPulling) BOOL pulling;
+@property (nonatomic, strong) NSTimer* autoPushTimer;
+@property (nonatomic, strong) NSTimer* autoPullTimer;
+@property (nonatomic, assign) BOOL needsInitialImport;
 
 @end
 
 @implementation CDCloudStore
+
++ (void) handleRemoteNotification:(NSDictionary*) userInfo {
+	[[NSNotificationCenter defaultCenter] postNotificationName:CDDidReceiveRemoteNotification object:nil userInfo:userInfo];
+}
 
 - (id) initWithPersistentStoreCoordinator:(NSPersistentStoreCoordinator *)root configurationName:(NSString *)name URL:(NSURL *)url options:(NSDictionary *)options {
 	if (self = [super initWithPersistentStoreCoordinator:root configurationName:name URL:url options:options]) {
@@ -60,6 +95,8 @@ NSString * const CDSubscriptionID = @"autoUpdate";
 			[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(managedObjectContextDidSave:) name:NSManagedObjectContextDidSaveNotification object:nil];
 			[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(ubiquityIdentityDidChange:) name:NSUbiquityIdentityDidChangeNotification object:nil];
 			[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(didReceiveRemoteNotification:) name:CDDidReceiveRemoteNotification object:nil];
+			[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(didBecomeActive:) name:UIApplicationDidBecomeActiveNotification object:nil];
+			[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(willResignActive:) name:UIApplicationWillResignActiveNotification object:nil];
 			return YES;
 		}
 		else
@@ -84,7 +121,7 @@ NSString * const CDSubscriptionID = @"autoUpdate";
 			CKRecord* record = objc_getAssociatedObject(object, @"CKRecord");
 			CDRecord* cdRecord = [NSEntityDescription insertNewObjectForEntityForName:@"CDRecord" inManagedObjectContext:_backingManagedObjectContext];
 			cdRecord.recordType = object.entity.name;
-			cdRecord.cache = [NSEntityDescription insertNewObjectForEntityForName:@"CDRecordCahce" inManagedObjectContext:_backingManagedObjectContext];
+			cdRecord.cache = [NSEntityDescription insertNewObjectForEntityForName:@"CDRecordCache" inManagedObjectContext:_backingManagedObjectContext];
 			cdRecord.cache.cachedRecord = record ?: [[CKRecord alloc] initWithRecordType:cdRecord.recordType zoneID:self.recordZoneID];
 			cdRecord.recordID = cdRecord.cache.cachedRecord.recordID.recordName;
 			[result addObject:[self newObjectIDForEntity:object.entity referenceObject:cdRecord.recordID]];
@@ -95,55 +132,82 @@ NSString * const CDSubscriptionID = @"autoUpdate";
 }
 
 - (nullable NSIncrementalStoreNode *)newValuesForObjectWithID:(NSManagedObjectID*)objectID withContext:(NSManagedObjectContext*)context error:(NSError**)error {
-	__block NSMutableDictionary* values = nil;
+	__block NSDictionary* values = nil;
 	
 	__block int64_t version = 0;
 	[_backingManagedObjectContext performBlockAndWait:^{
-		NSManagedObject* backingObject = [self.backingObjectsHelper backingObjectWithObjectID:objectID];
-		if (!backingObject)
-			return;
-		values = [NSMutableDictionary new];
-		NSEntityDescription* entity = _entities[backingObject.entity.name];
-		for (NSString* key in entity.attributesByName.allKeys) {
-			id obj = [backingObject valueForKey:key];
-			if (obj)
-				values[key] = obj;
-		}
-		[entity.relationshipsByName enumerateKeysAndObjectsUsingBlock:^(NSString * _Nonnull key, NSRelationshipDescription * _Nonnull obj, BOOL * _Nonnull stop) {
-			if (!obj.toMany) {
-				NSManagedObject* reference = [backingObject valueForKey:key];
-				if (reference)
-					values[key] = [self.backingObjectsHelper objectIDWithBackingObject:reference];
-				else
-					values[key] = [NSNull null];
+		if ([context isKindOfClass:[CDManagedObjectContext class]] && [(CDManagedObjectContext*) context loadFromCache]) {
+			CDRecord* record = [self.backingObjectsHelper recordWithObjectID:objectID];
+			if (record) {
+				values = [record.cache.cachedRecord nodeValuesInStore:self includeToManyRelationships:NO];
+				version = record.cache.version;
 			}
-		}];
-
-		CDRecord* record = [backingObject valueForKey:@"CDRecord"];
-		version = record.version;
+		}
+		else {
+			NSManagedObject* backingObject = [self.backingObjectsHelper backingObjectWithObjectID:objectID];
+			if (!backingObject)
+				return;
+			NSMutableDictionary* dic = [NSMutableDictionary new];
+			NSEntityDescription* entity = _entities[backingObject.entity.name];
+			for (NSString* key in entity.attributesByName.allKeys) {
+				id obj = [backingObject valueForKey:key];
+				if (obj)
+					dic[key] = obj;
+			}
+			[entity.relationshipsByName enumerateKeysAndObjectsUsingBlock:^(NSString * _Nonnull key, NSRelationshipDescription * _Nonnull obj, BOOL * _Nonnull stop) {
+				if (!obj.toMany) {
+					NSManagedObject* reference = [backingObject valueForKey:key];
+					if (reference)
+						dic[key] = [self.backingObjectsHelper objectIDWithBackingObject:reference];
+					else
+						dic[key] = [NSNull null];
+				}
+			}];
+			
+			CDRecord* record = [backingObject valueForKey:@"CDRecord"];
+			version = record.version;
+			values = dic;
+		}
 	}];
-	return values ? [[NSIncrementalStoreNode alloc] initWithObjectID:objectID withValues:values version:version] : nil;
+	return values ? [[MyNode alloc] initWithObjectID:objectID withValues:values version:version] : nil;
 }
 
 - (nullable id)newValueForRelationship:(NSRelationshipDescription*)relationship forObjectWithID:(NSManagedObjectID*)objectID withContext:(nullable NSManagedObjectContext *)context error:(NSError **)error {
 	__block id result = nil;
 	[_backingManagedObjectContext performBlockAndWait:^{
-		NSManagedObject* backingObject = [self.backingObjectsHelper backingObjectWithObjectID:objectID];
-		if (!backingObject)
-			return;
-		if (relationship.toMany) {
-			NSMutableSet* set = [NSMutableSet new];
-			for (NSManagedObject* object in [backingObject valueForKey:relationship.name])
-				[set addObject:[self.backingObjectsHelper objectIDWithBackingObject:object]];
-			result = set;
+		if ([context isKindOfClass:[CDManagedObjectContext class]] && [(CDManagedObjectContext*) context loadFromCache]) {
+			CDRecord* record = [self.backingObjectsHelper recordWithObjectID:objectID];
+			if (record) {
+				result = [relationship managedReferenceFromCKRecord:record inStore:self];
+			}
 		}
 		else {
-			NSManagedObject* object = [backingObject valueForKey:relationship.name];
-			result = object ? [self.backingObjectsHelper objectIDWithBackingObject:object] : [NSNull null];
+			NSManagedObject* backingObject = [self.backingObjectsHelper backingObjectWithObjectID:objectID];
+			if (!backingObject)
+				return;
+			if (relationship.toMany) {
+				NSMutableSet* set = [NSMutableSet new];
+				for (NSManagedObject* object in [backingObject valueForKey:relationship.name])
+					[set addObject:[self.backingObjectsHelper objectIDWithBackingObject:object]];
+				result = set;
+			}
+			else {
+				NSManagedObject* object = [backingObject valueForKey:relationship.name];
+				result = object ? [self.backingObjectsHelper objectIDWithBackingObject:object] : [NSNull null];
+			}
 		}
 	}];
 	return result;
 }
+
+- (NSManagedObjectID *)newObjectIDForEntity:(NSEntityDescription *)entity referenceObject:(id)data {
+	return [super newObjectIDForEntity:entity referenceObject:[@"id" stringByAppendingString:data]];
+}
+
+- (id)referenceObjectForObjectID:(NSManagedObjectID *)objectID {
+	return [[super referenceObjectForObjectID:objectID] substringFromIndex:2];
+}
+
 
 #pragma mark - Loading
 
@@ -171,6 +235,7 @@ NSString * const CDSubscriptionID = @"autoUpdate";
 		inverseRelationship.destinationEntity = recordEntity;
 		
 		relationship.inverseRelationship = inverseRelationship;
+		inverseRelationship.inverseRelationship = relationship;
 		relationship.destinationEntity.properties = [relationship.destinationEntity.properties arrayByAddingObject:inverseRelationship];
 	}
 	recordEntity.properties = properties;
@@ -179,6 +244,10 @@ NSString * const CDSubscriptionID = @"autoUpdate";
 }
 
 - (BOOL) loadBackingStoreWithError:(NSError **)error {
+	self.autoPushTimer = nil;
+	self.autoPullTimer = nil;
+	self.accountStatus = CKAccountStatusCouldNotDetermine;
+
 	id value = self.options[CDCloudStoreOptionDatabaseScopeKey];
 	id zone = self.options[CDCloudStoreOptionRecordZoneKey] ?: [[self.URL lastPathComponent] stringByDeletingPathExtension];
 	id mergePolicyType = self.options[CDCloudStoreOptionMergePolicyType] ?: @(NSMergeByPropertyObjectTrumpMergePolicyType);
@@ -206,16 +275,21 @@ NSString * const CDSubscriptionID = @"autoUpdate";
 	
 	self.backingPersistentStore = [_backingPersistentStoreCoordinator addPersistentStoreWithType:NSSQLiteStoreType configuration:nil URL:url options:@{} error:error];
 	
-	self.accountStatus = CKAccountStatusCouldNotDetermine;
 	if (self.backingPersistentStore && (self.databaseScope == CKDatabaseScopePublic || token)) {
 		NSManagedObjectContext* context = [[NSManagedObjectContext alloc] initWithConcurrencyType:NSPrivateQueueConcurrencyType];
+		context.persistentStoreCoordinator = _backingPersistentStoreCoordinator;
 		[context performBlockAndWait:^{
-			CDMetadata* metadata = [context executeFetchRequest:[CDMetadata fetchRequest] error:nil];
+			CDMetadata* metadata = [[context executeFetchRequest:[CDMetadata fetchRequest] error:nil] lastObject];
 			if (!metadata) {
 				metadata = [NSEntityDescription insertNewObjectForEntityForName:@"CDMetadata" inManagedObjectContext:context];
 				metadata.recordZoneID = self.recordZoneID;
+				metadata.uuid = [NSUUID UUID].UUIDString;
 				[context save:nil];
 			}
+			self.needsInitialImport = metadata.serverChangeToken == nil;
+			NSMutableDictionary* dic = [self.metadata mutableCopy];
+			dic[NSStoreUUIDKey] = metadata.uuid;
+			self.metadata = dic;
 		}];
 		self.container = containerIdentifier ? [CKContainer containerWithIdentifier:containerIdentifier] : [CKContainer defaultContainer];
 		[self loadDatabase];
@@ -230,7 +304,6 @@ NSString * const CDSubscriptionID = @"autoUpdate";
 }
 
 - (void) loadDatabase {
-	return;
 	if ([self.container respondsToSelector:@selector(databaseWithDatabaseScope:)])
 		self.database = [self.container databaseWithDatabaseScope:self.databaseScope];
 	else {
@@ -254,6 +327,8 @@ NSString * const CDSubscriptionID = @"autoUpdate";
 				self.accountStatus = accountStatus;
 				[self loadRecordZone];
 			}
+			else
+				[[NSNotificationCenter defaultCenter] postNotificationName:CDCloudStoreDidFailtToInitializeCloudAccountNotification object:self userInfo:@{CDErrorKey:error}];
 			
 			[operation finishWithError:error];
 		}];
@@ -261,6 +336,15 @@ NSString * const CDSubscriptionID = @"autoUpdate";
 }
 
 - (void) loadRecordZone {
+	void (^next)() = ^{
+		[[NSNotificationCenter defaultCenter] postNotificationName:CDCloudStoreDidInitializeCloudAccountNotification object:self userInfo:nil];
+		[self pull];
+		[self loadSubscription];
+		
+		if ([self iCloudIsAvailableForWriting]) {
+			self.autoPushTimer = [NSTimer timerWithTimeInterval:10 target:self selector:@selector(push) userInfo:nil repeats:YES];
+		}
+	};
 	[self.operationQueue addOperationWithBlock:^(CDOperation *operation) {
 		
 		CKFetchRecordZonesOperation* databaseOperation = [[CKFetchRecordZonesOperation alloc] initWithRecordZoneIDs:@[self.recordZoneID]];
@@ -280,27 +364,26 @@ NSString * const CDSubscriptionID = @"autoUpdate";
 									NSLog(@"CKModifyRecordZonesOperation error: %@", operationError);
 									if (!operationError && savedRecordZones.count > 0) {
 										self.recordZone = [savedRecordZones lastObject];
-										[self loadSubscription];
-										[self pull];
-										[self push];
+										next();
 									}
+									else
+										[[NSNotificationCenter defaultCenter] postNotificationName:CDCloudStoreDidFailtToInitializeCloudAccountNotification object:self userInfo:operationError ? @{CDErrorKey:operationError} : nil];
+
 									[operation finishWithError:operationError];
 									
 								};
 								[self.database addOperation:databaseOperation];
 							}];
-						}
-						else {
-							[operation finishWithError:operationError];
+							
+							return;
 						}
 					}
 				}
+				[[NSNotificationCenter defaultCenter] postNotificationName:CDCloudStoreDidFailtToInitializeCloudAccountNotification object:self userInfo:operationError ? @{CDErrorKey:operationError} : nil];
 			}
 			else {
 				self.recordZone = zone;
-				[self loadSubscription];
-				[self pull];
-				[self push];
+				next();
 			}
 			[operation finishWithError:operationError];
 		};
@@ -346,43 +429,34 @@ NSString * const CDSubscriptionID = @"autoUpdate";
 
 #pragma mark - Save/Fetch requests
 
-/*- (NSMergeConflict*) findConflictsInObject:(NSManagedObject*) object withRecord:(CDRecord*) record {
-	NSArray* transactions = [[record.transactions allObjects] sortedArrayUsingDescriptors:@[[NSSortDescriptor sortDescriptorWithKey:@"version" ascending:YES]]];
-	if (transactions.count > 0) {
-		NSManagedObject* backingObject = [record valueForKey:record.recordType];
-		if (backingObject) {
-			NSMutableDictionary* cachedSnapshot = [NSMutableDictionary new];
-			
-			NSDictionary* d = [object committedValuesForKeys:nil];
-			for (NSPropertyDescription* property in object.objectID.entity.properties) {
-				if ([property isKindOfClass:[NSRelationshipDescription class]] && [(NSRelationshipDescription*) property isToMany])
-					continue;
-				
-				
-				id value = [d valueForKey:property.name];
-				if (value)
-					cachedSnapshot[property.name] = value;
-			}
-			return [[NSMergeConflict alloc] initWithSource:object newVersion:record.version + 1 oldVersion:record.version cachedSnapshot:cachedSnapshot persistedSnapshot:nil];
-		}
-		else
-			return [[NSMergeConflict alloc] initWithSource:object newVersion:record.version + 1 oldVersion:0 cachedSnapshot:nil persistedSnapshot:nil];
-	}
-	else
-		return nil;
-}*/
-
-
 - (id)executeSaveRequest:(NSSaveChangesRequest *)request withContext:(nullable NSManagedObjectContext*)context error:(NSError **)error {
 	NSMutableDictionary* changedValues = [NSMutableDictionary new];
 	NSMutableSet* objects = [NSMutableSet new];
 	[objects unionSet:request.insertedObjects];
 	[objects unionSet:request.updatedObjects];
-	
+
 	[_backingManagedObjectContext performBlockAndWait:^{
+		
+		NSManagedObject* (^getBackingObject)(NSManagedObject*) = ^(NSManagedObject* object) {
+			CDRecord* record = [self.backingObjectsHelper recordWithObjectID:object.objectID];
+			return [record valueForKey:record.recordType];
+		};
+		
+		for (NSManagedObject* object in request.insertedObjects) {
+			CDRecord* record = [self.backingObjectsHelper recordWithObjectID:object.objectID];
+			NSManagedObject* backingObject = [NSEntityDescription insertNewObjectForEntityForName:object.entity.name inManagedObjectContext:_backingManagedObjectContext];
+			[backingObject setValue:record forKey:@"CDRecord"];
+			[record setValue:backingObject forKey:record.recordType];
+		}
+		
 		for (NSManagedObject* object in objects) {
 			CDRecord* record = [self.backingObjectsHelper recordWithObjectID:object.objectID];
 			NSManagedObject* backingObject = [record valueForKey:record.recordType];
+			if (!backingObject) {
+				backingObject = [NSEntityDescription insertNewObjectForEntityForName:object.entity.name inManagedObjectContext:_backingManagedObjectContext];
+				[backingObject setValue:record forKey:@"CDRecord"];
+				[record setValue:backingObject forKey:record.recordType];
+			}
 			
 			NSDictionary* propertiesByName = object.entity.propertiesByName;
 			[object.changedValues enumerateKeysAndObjectsUsingBlock:^(NSString * _Nonnull key, id  _Nonnull obj, BOOL * _Nonnull stop) {
@@ -393,163 +467,46 @@ NSString * const CDSubscriptionID = @"autoUpdate";
 					NSRelationshipDescription* relationship = (NSRelationshipDescription*) property;
 					if (relationship.toMany) {
 						NSMutableSet* set = [NSMutableSet new];
-						for (NSManagedObject* object in obj)
-							[set addObject:[self.backingObjectsHelper backingObjectWithObjectID:object.objectID]];
+						for (NSManagedObject* object in obj) {
+							NSManagedObject* reference = getBackingObject(object);
+							[set addObject:reference];
+						}
 						[backingObject setValue:set forKey:key];
 					}
+					else if ([obj isKindOfClass:[NSManagedObject class]])
+						[backingObject setValue:getBackingObject(obj) forKey:key];
 					else
-						[backingObject setValue:[self.backingObjectsHelper backingObjectWithObjectID:[obj objectID]] forKey:key];
+						[backingObject setValue:nil forKey:key];
 				}
 			}];
 			CKRecord* ckRecord = objc_getAssociatedObject(object, @"CKRecord");
 			if (ckRecord) {
 				record.cache.cachedRecord = ckRecord;
-				NSDictionary* diff = [ckRecord changedValuesWithObject:ckRecord];
-				if (diff.count > 0)
-					record.cache.version = record.version;
-				else
-					record.cache.version = record.version + 1;
+				if (record.version == record.cache.version)
+					record.cache.version++;
 			}
 			record.version++;
-		}
-		
-		if ([_backingManagedObjectContext hasChanges])
-			[_backingManagedObjectContext save:error];
-		return;
-
-		
-		/*NSMutableArray* conflicts = [NSMutableArray new];
-		for (NSManagedObject* object in [objects setByAddingObjectsFromSet:request.deletedObjects]) {
-			CDRecord* record = [self.backingObjectsHelper recordWithObjectID:object.objectID];
-			NSMergeConflict* conflict = [self findConflictsInObject:object withRecord:record];
-			if (conflict)
-				[conflicts addObject:conflict];
-		}
-		
-		NSError* errorr = nil;
-		NSLog(@"%@", [objects anyObject]);
-		BOOL b = NO;
-		if (conflicts.count > 0) {
-			self.mergePolicy = NSMergeByPropertyStoreTrumpMergePolicy;
-			b = [self.mergePolicy resolveConflicts:conflicts error:&errorr];
-		}
-		NSLog(@"%@", [objects anyObject]);*/
-		
-		for (NSManagedObject* object in objects) {
-			NSDictionary* relationships = object.entity.relationshipsByName;
-			NSMutableDictionary* dic = [NSMutableDictionary new];
-			[object.changedValues enumerateKeysAndObjectsUsingBlock:^(NSString * _Nonnull key, id  _Nonnull obj, BOOL * _Nonnull stop) {
-				if (relationships[key]) {
-					obj = [[object valueForKey:key] valueForKey:@"objectID"] ?: [NSNull null];
-				}
-				else {
-					obj = [object valueForKey:key] ?: [NSNull null];
-				}
-				dic[key] = obj;
-			}];
-			changedValues[object.objectID] = dic;
-		}
-		
-		/*CDTransaction* (^newChangeTransaction)(CDRecord*, NSString*, id) = ^(CDRecord* record, NSString* key, id value) {
-			CDTransaction* transaction = [NSEntityDescription insertNewObjectForEntityForName:@"CDTransaction" inManagedObjectContext:_backingManagedObjectContext];
-			transaction.record = record;
-			transaction.version = record.version;
-			transaction.action = CDTransactionActionChange;
-			transaction.key = key;
-			transaction.value = value;
-			return transaction;
-		};*/
-		
-		for (NSManagedObject* object in objects) {
-			NSEntityDescription* entity = object.entity;
-			NSDictionary* properties = entity.propertiesByName;
-			
-			
-			CDRecord* record = [self.backingObjectsHelper recordWithObjectID:object.objectID];
-			NSManagedObject* backingObject = [record valueForKey:record.recordType];
-			if (!backingObject) {
-				backingObject = [NSEntityDescription insertNewObjectForEntityForName:object.entity.name inManagedObjectContext:_backingManagedObjectContext];
-				[backingObject setValue:record forKey:@"CDRecord"];
-				[record setValue:backingObject forKey:record.recordType];
-			}
-			record.version++;
-			
-			CKRecord* ckRecord = objc_getAssociatedObject(object, @"CKRecord");
-			
-			[changedValues[object.objectID] enumerateKeysAndObjectsUsingBlock:^(NSString*  _Nonnull key, id  _Nonnull obj, BOOL * _Nonnull stop) {
-				NSPropertyDescription* property = properties[key];
-				if ([obj isKindOfClass:[NSNull class]])
-					obj = nil;
-				
-				if ([property isKindOfClass:[NSAttributeDescription class]]) {
-					NSAttributeDescription* attribute = (NSAttributeDescription*) property;
-					obj = [attribute transformedValue:obj];
-//					if (ckRecord) {
-//					}
-//					else
-//						newChangeTransaction(record, key, obj);
-				}
-				else if ([property isKindOfClass:[NSRelationshipDescription class]]) {
-					NSRelationshipDescription* relationship = (NSRelationshipDescription*) property;
-					if (relationship.toMany) {
-						NSMutableSet* set = [NSMutableSet new];
-						for (NSManagedObjectID* objectID in obj) {
-							NSManagedObject* backingObject = [self.backingObjectsHelper backingObjectWithObjectID:objectID];
-							if (backingObject)
-								[set addObject:backingObject];
-						}
-						obj = set;
-					}
-					else if (obj)
-						obj = [self.backingObjectsHelper backingObjectWithObjectID:obj];
-					
-					if ([relationship shouldSerialize]) {
-						if (ckRecord) {
-							
-						}
-						else {
-							id value;
-							if ([obj isKindOfClass:[NSSet class]]) {
-								NSMutableSet* references = [NSMutableSet new];
-								for (NSManagedObject* object in obj) {
-									CDRecord* record = [object valueForKey:@"CDRecord"];
-									[references addObject:record.recordID];
-								}
-								value = references;
-							}
-							else {
-								if (obj) {
-									CDRecord* record = [obj valueForKey:@"CDRecord"];
-									value = record.recordID;
-								}
-								else
-									value = nil;
-							}
-//							newChangeTransaction(record, key, value);
-						}
-					}
-				}
-				[backingObject setValue:obj forKey:key];
-			}];
 		}
 		
 		for (NSManagedObject* object in request.deletedObjects) {
-			NSManagedObject* backingObject = [self.backingObjectsHelper backingObjectWithObjectID:object.objectID];
-			if (backingObject) {
-				CDRecord* record = [backingObject valueForKey:@"CDRecord"];
-//				BOOL logTransactions = !objc_getAssociatedObject(object, @"CKRecord");
-//				if (logTransactions) {
-//					CDTransaction* transaction = [NSEntityDescription insertNewObjectForEntityForName:@"CDTransaction" inManagedObjectContext:_backingManagedObjectContext];
-//					transaction.record = record;
-//					transaction.action = CDTransactionActionDelete;
-//				}
+			CDRecord* record = [self.backingObjectsHelper recordWithObjectID:object.objectID];
+			NSManagedObject* backingObject = [record valueForKey:record.recordType];
+			if (backingObject)
 				[_backingManagedObjectContext deleteObject:backingObject];
-			}
+			
+			CKRecordID* ckRecordID = objc_getAssociatedObject(object, @"CKRecordID");
+			if (ckRecordID)
+				[_backingManagedObjectContext deleteObject:record];
+			record.version = 0;
 		}
+		
 		if ([_backingManagedObjectContext hasChanges])
 			[_backingManagedObjectContext save:error];
 	}];
-	[self push];
+	dispatch_async(dispatch_get_main_queue(), ^{
+		[NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(push) object:nil];
+		[self performSelector:@selector(push) withObject:nil afterDelay:1];
+	});
 	return @[];
 }
 
@@ -626,15 +583,32 @@ NSString * const CDSubscriptionID = @"autoUpdate";
 }
 
 - (void) didReceiveRemoteNotification:(NSNotification*) notification {
-//	CKRecordZoneNotification* note;
-//	if (notification.userInfo)
-//		note = [CKRecordZoneNotification notificationFromRemoteNotificationDictionary:notification.userInfo];
-//	
-//	
-//	if ([note.containerIdentifier isEqualToString:[self.container containerIdentifier]] && [note.recordZoneID isEqual:self.zoneID]) {
-//		[NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(pull) object:nil];
-//		[self performSelector:@selector(pull) withObject:nil afterDelay:1];
-//	}
+	CKRecordZoneNotification* note;
+	if (notification.userInfo)
+		note = [CKRecordZoneNotification notificationFromRemoteNotificationDictionary:notification.userInfo];
+	
+	
+	if ([note.containerIdentifier isEqualToString:[self.container containerIdentifier]] && [note.recordZoneID isEqual:self.recordZoneID]) {
+		[NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(pull) object:nil];
+		[self performSelector:@selector(pull) withObject:nil afterDelay:1];
+	}
+}
+
+- (void) didBecomeActive:(NSNotification*) notification {
+	[self.operationQueue resume];
+	[NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(pull) object:nil];
+	[self performSelector:@selector(pull) withObject:nil afterDelay:3];
+	if (self.autoPushTimer)
+		[[NSRunLoop mainRunLoop] addTimer:self.autoPushTimer forMode:NSDefaultRunLoopMode];
+	if (self.autoPullTimer)
+		[[NSRunLoop mainRunLoop] addTimer:self.autoPullTimer forMode:NSDefaultRunLoopMode];
+}
+
+- (void) willResignActive:(NSNotification*) notification {
+	[self.operationQueue suspend];
+	[NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(pull) object:nil];
+	[self.autoPushTimer invalidate];
+	[self.autoPullTimer invalidate];
 }
 
 #pragma mark - Pull/Push
@@ -650,6 +624,9 @@ NSString * const CDSubscriptionID = @"autoUpdate";
 			@synchronized (self) {
 				self.pushing = NO;
 			}
+			if (conflicts.count > 0)
+				[self pull];
+
 		}];
 		[self.operationQueue addOperation:operation];
 	}
@@ -662,15 +639,44 @@ NSString * const CDSubscriptionID = @"autoUpdate";
 				return;
 			self.pulling = YES;
 		}
-		CDPullOperation* operation = [[CDPullOperation alloc] initWithStore:self completionHandler:^(BOOL moreComing, NSError *error) {
-			@synchronized (self) {
-				self.pushing = NO;
-			}
+		if (self.needsInitialImport)
+			[[NSNotificationCenter defaultCenter] postNotificationName:CDCloudStoreDidStartCloudImportNotification object:self];
+		__block CDPullOperation* operation = [[CDPullOperation alloc] initWithStore:self completionHandler:^(BOOL moreComing, NSError *error) {
 			if (moreComing)
-				[self pull];
+				[self.operationQueue addOperation:operation];
+			else {
+				if (self.needsInitialImport) {
+					if (error)
+						[[NSNotificationCenter defaultCenter] postNotificationName:CDCloudStoreDidFailCloudImportNotification object:self userInfo:@{CDErrorKey:error}];
+					else {
+						[[NSNotificationCenter defaultCenter] postNotificationName:CDCloudStoreDidFinishCloudImportNotification object:self];
+						self.needsInitialImport = NO;
+					}
+				}
+				@synchronized (self) {
+					self.pulling = NO;
+				}
+				[self push];
+			}
 		}];
 		[self.operationQueue addOperation:operation];
 	}
+}
+
+#pragma mark - Timers
+
+- (void) setAutoPushTimer:(NSTimer *)autoPushTimer {
+	[_autoPushTimer invalidate];
+	_autoPushTimer = autoPushTimer;
+	if (_autoPushTimer)
+		[[NSRunLoop mainRunLoop] addTimer:_autoPushTimer forMode:NSDefaultRunLoopMode];
+}
+
+- (void) setAutoPullTimer:(NSTimer *)autoPullTimer {
+	[_autoPullTimer invalidate];
+	_autoPullTimer = autoPullTimer;
+	if (_autoPullTimer)
+		[[NSRunLoop mainRunLoop] addTimer:_autoPullTimer forMode:NSDefaultRunLoopMode];
 }
 
 @end

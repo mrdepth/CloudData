@@ -14,6 +14,7 @@
 @property (nonatomic, strong) NSMutableArray* operations;
 @property (nonatomic, strong) NSDate* handleDate;
 @property (nonatomic, strong) CDOperation* currentOperation;
+@property (nonatomic, assign) BOOL suspended;
 @end
 
 @implementation CDOperationQueue
@@ -73,6 +74,16 @@
 	}
 }
 
+- (void) suspend {
+	self.suspended = YES;
+}
+
+- (void) resume {
+	self.suspended = NO;
+	[self handleQueue];
+}
+
+
 #pragma mark - Private
 
 - (void) reachabilityChanged:(NSNotification*) note {
@@ -83,6 +94,9 @@
 }
 
 - (void) handleQueue {
+	if (self.suspended)
+		return;
+	
 	dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
 		@autoreleasepool {
 			@synchronized (self) {

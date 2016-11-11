@@ -21,8 +21,8 @@
 		12943C3E1DD35FEE0037F2DE /* NSUUID+CD.m in Sources */ = {isa = PBXBuildFile; fileRef = 12943C3C1DD35FEE0037F2DE /* NSUUID+CD.m */; };
 		12943C441DD369970037F2DE /* NSAttributeDescription+CD.h in Headers */ = {isa = PBXBuildFile; fileRef = 12943C421DD369970037F2DE /* NSAttributeDescription+CD.h */; };
 		12943C451DD369970037F2DE /* NSAttributeDescription+CD.m in Sources */ = {isa = PBXBuildFile; fileRef = 12943C431DD369970037F2DE /* NSAttributeDescription+CD.m */; };
-		12943C481DD36DDF0037F2DE /* CDRecordTransformer.h in Headers */ = {isa = PBXBuildFile; fileRef = 12943C461DD36DDF0037F2DE /* CDRecordTransformer.h */; };
-		12943C491DD36DDF0037F2DE /* CDRecordTransformer.m in Sources */ = {isa = PBXBuildFile; fileRef = 12943C471DD36DDF0037F2DE /* CDRecordTransformer.m */; };
+		12981B9E1DD5D2280049B15C /* CDManagedObjectContext.h in Headers */ = {isa = PBXBuildFile; fileRef = 12981B9C1DD5D2280049B15C /* CDManagedObjectContext.h */; };
+		12981B9F1DD5D2280049B15C /* CDManagedObjectContext.m in Sources */ = {isa = PBXBuildFile; fileRef = 12981B9D1DD5D2280049B15C /* CDManagedObjectContext.m */; };
 		12B1417C1DD3929300FBC529 /* CDBackingObjectHelper.h in Headers */ = {isa = PBXBuildFile; fileRef = 12B1417A1DD3929300FBC529 /* CDBackingObjectHelper.h */; };
 		12B1417D1DD3929300FBC529 /* CDBackingObjectHelper.m in Sources */ = {isa = PBXBuildFile; fileRef = 12B1417B1DD3929300FBC529 /* CDBackingObjectHelper.m */; };
 		12B141801DD39D1400FBC529 /* NSRelationshipDescription+CD.h in Headers */ = {isa = PBXBuildFile; fileRef = 12B1417E1DD39D1400FBC529 /* NSRelationshipDescription+CD.h */; };
@@ -54,8 +54,8 @@
 		12943C3C1DD35FEE0037F2DE /* NSUUID+CD.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "NSUUID+CD.m"; sourceTree = "<group>"; };
 		12943C421DD369970037F2DE /* NSAttributeDescription+CD.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSAttributeDescription+CD.h"; sourceTree = "<group>"; };
 		12943C431DD369970037F2DE /* NSAttributeDescription+CD.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "NSAttributeDescription+CD.m"; sourceTree = "<group>"; };
-		12943C461DD36DDF0037F2DE /* CDRecordTransformer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CDRecordTransformer.h; sourceTree = "<group>"; };
-		12943C471DD36DDF0037F2DE /* CDRecordTransformer.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = CDRecordTransformer.m; sourceTree = "<group>"; };
+		12981B9C1DD5D2280049B15C /* CDManagedObjectContext.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CDManagedObjectContext.h; sourceTree = "<group>"; };
+		12981B9D1DD5D2280049B15C /* CDManagedObjectContext.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = CDManagedObjectContext.m; sourceTree = "<group>"; };
 		12B1417A1DD3929300FBC529 /* CDBackingObjectHelper.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CDBackingObjectHelper.h; sourceTree = "<group>"; };
 		12B1417B1DD3929300FBC529 /* CDBackingObjectHelper.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = CDBackingObjectHelper.m; sourceTree = "<group>"; };
 		12B1417E1DD39D1400FBC529 /* NSRelationshipDescription+CD.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSRelationshipDescription+CD.h"; sourceTree = "<group>"; };
@@ -119,10 +119,10 @@
 				12B1417F1DD39D1400FBC529 /* NSRelationshipDescription+CD.m */,
 				1234ABF11DD50B7400B5595A /* NSManagedObject+CD.h */,
 				1234ABF21DD50B7400B5595A /* NSManagedObject+CD.m */,
+				12981B9C1DD5D2280049B15C /* CDManagedObjectContext.h */,
+				12981B9D1DD5D2280049B15C /* CDManagedObjectContext.m */,
 				1234ABF51DD50E4900B5595A /* CKRecord+CD.h */,
 				1234ABF61DD50E4900B5595A /* CKRecord+CD.m */,
-				12943C461DD36DDF0037F2DE /* CDRecordTransformer.h */,
-				12943C471DD36DDF0037F2DE /* CDRecordTransformer.m */,
 				12943C241DD353C90037F2DE /* CloudData.h */,
 				12943C2E1DD353DE0037F2DE /* CloudData.xcdatamodeld */,
 				12943C251DD353C90037F2DE /* Info.plist */,
@@ -159,9 +159,9 @@
 				12F7E7E61DD4557D00C36FFB /* CDReachability.h in Headers */,
 				12943C391DD354B80037F2DE /* CDOperationQueue.h in Headers */,
 				12B141801DD39D1400FBC529 /* NSRelationshipDescription+CD.h in Headers */,
-				12943C481DD36DDF0037F2DE /* CDRecordTransformer.h in Headers */,
 				1234ABF71DD50E4900B5595A /* CKRecord+CD.h in Headers */,
 				12F7E7E21DD453CB00C36FFB /* CDOperation.h in Headers */,
+				12981B9E1DD5D2280049B15C /* CDManagedObjectContext.h in Headers */,
 				12943C3D1DD35FEE0037F2DE /* NSUUID+CD.h in Headers */,
 				1234ABF31DD50B7400B5595A /* NSManagedObject+CD.h in Headers */,
 			);
@@ -238,11 +238,11 @@
 			files = (
 				12E7F0C11DD46CDF0079D5D2 /* CDPushOperation.m in Sources */,
 				12943C3E1DD35FEE0037F2DE /* NSUUID+CD.m in Sources */,
-				12943C491DD36DDF0037F2DE /* CDRecordTransformer.m in Sources */,
 				12B141811DD39D1400FBC529 /* NSRelationshipDescription+CD.m in Sources */,
 				12943C3A1DD354B80037F2DE /* CDOperationQueue.m in Sources */,
 				12F7E7E31DD453CB00C36FFB /* CDOperation.m in Sources */,
 				12943C451DD369970037F2DE /* NSAttributeDescription+CD.m in Sources */,
+				12981B9F1DD5D2280049B15C /* CDManagedObjectContext.m in Sources */,
 				12B1417D1DD3929300FBC529 /* CDBackingObjectHelper.m in Sources */,
 				12943C311DD353DE0037F2DE /* CDCloudStore.m in Sources */,
 				12E7F0C61DD486C40079D5D2 /* CDPullOperation.m in Sources */,

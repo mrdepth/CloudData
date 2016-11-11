@@ -9,10 +9,12 @@
 #import <CoreData/CoreData.h>
 
 @protocol CKRecordValue;
+@class CKRecord;
 @interface NSAttributeDescription (CD)
 
 - (id) reverseTransformValue:(id) value;
 - (id) transformedValue:(id)value;
 - (id<CKRecordValue>) CKRecordValueFromBackingObject:(NSManagedObject*) object;
+- (id) managedValueFromCKRecord:(CKRecord*) record;
 
 @end

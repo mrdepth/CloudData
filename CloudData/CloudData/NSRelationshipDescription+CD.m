@@ -54,12 +54,37 @@
 			result = references;
 			return;
 		}
-		else {
+		else if (value) {
 			CDRecord* record = [value valueForKey:@"CDRecord"];
 			result = [[CKReference alloc] initWithRecordID:[[CKRecordID alloc] initWithRecordName:record.recordID zoneID:recordZoneID] action:action];
 		}
 	}];
 	return result;
+}
+
+- (id) managedReferenceFromCKRecord:(CKRecord*) record inStore:(CDCloudStore*) store {
+	NSParameterAssert(record != nil);
+	NSParameterAssert(store != nil);
+	id value = record[self.name];
+	if (self.isToMany) {
+		NSMutableSet* set = [NSMutableSet new];
+		for (CKReference* reference in value) {
+			if ([value isKindOfClass:[CKReference class]])
+				[set addObject:[self managedReferenceFromCKReference:reference inStore:store]];
+		}
+		return set;
+	}
+	else {
+		CKReference* reference = [value isKindOfClass:[NSArray class]] ? [value lastObject] : value;
+		if ([value isKindOfClass:[CKReference class]])
+			return [self managedReferenceFromCKReference:reference inStore:store];
+		else
+			return [NSNull null];
+	}
+}
+
+- (NSManagedObjectID*) managedReferenceFromCKReference:(CKReference*) reference inStore:(CDCloudStore*) store {
+	return [store.backingObjectsHelper objectIDWithRecordID:reference.recordID.recordName entityName:self.destinationEntity.name];
 }
 
 @end

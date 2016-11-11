@@ -7,6 +7,7 @@
 //
 
 #import "NSAttributeDescription+CD.h"
+@import CloudKit;
 
 @implementation NSAttributeDescription (CD)
 
@@ -60,7 +61,11 @@
 }
 
 - (id<CKRecordValue>) CKRecordValueFromBackingObject:(NSManagedObject*) object {
-	return [self reverseTransformValue:[object valueForKey:self.name]];
+	return [self transformedValue:[object valueForKey:self.name]];
+}
+
+- (id) managedValueFromCKRecord:(CKRecord*) record {
+	return [self reverseTransformValue:record[self.name]];
 }
 
 @end

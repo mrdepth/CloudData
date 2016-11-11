@@ -19,6 +19,7 @@
 - (CDRecord*) recordWithObjectID:(NSManagedObjectID*) objectID;
 - (CDRecord*) recordWithRecordID:(NSString*) recordID;
 - (NSManagedObjectID*) objectIDWithBackingObject:(NSManagedObject*) object;
+- (NSManagedObjectID*) objectIDWithRecordID:(NSString*) recordID entityName:(NSString*) entityName;
 
 
 @end

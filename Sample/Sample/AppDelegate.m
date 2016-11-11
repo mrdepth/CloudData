@@ -17,6 +17,9 @@
 
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+	[[UIApplication sharedApplication] registerUserNotificationSettings:[UIUserNotificationSettings settingsForTypes:UIUserNotificationTypeAlert categories:nil]];
+	[[UIApplication sharedApplication] registerForRemoteNotifications];
+
 	[NSPersistentStoreCoordinator registerStoreClass:[CDCloudStore class] forStoreType:CDCloudStoreType];
 	return YES;
 }
@@ -48,5 +51,9 @@
 	// Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
 }
 
+- (void) application:(UIApplication *)application didReceiveRemoteNotification:(NSDictionary *)userInfo {
+	[CDCloudStore handleRemoteNotification:userInfo];
+	NSLog(@"%@", userInfo);
+}
 
 @end

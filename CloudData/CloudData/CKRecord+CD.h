@@ -8,8 +8,9 @@
 
 #import <CloudKit/CloudKit.h>
 
-@class NSManagedObject;
+@class NSManagedObject, CDCloudStore, NSEntityDescription;
 @interface CKRecord (CD)
 
-- (NSDictionary<NSString*, id>*) changedValuesWithObject:(NSManagedObject*) object;
+- (NSDictionary<NSString*, id>*) changedValuesWithObject:(NSManagedObject*) backingObject entity:(NSEntityDescription*) entity;
+- (NSDictionary<NSString*, id>*) nodeValuesInStore:(CDCloudStore*) store includeToManyRelationships:(BOOL) useToMany;
 @end

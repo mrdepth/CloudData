@@ -76,4 +76,12 @@
 		return nil;
 }
 
+- (NSManagedObjectID*) objectIDWithRecordID:(NSString*) recordID entityName:(NSString*) entityName {
+	NSEntityDescription* entity = self.store.entities[entityName];
+	if (entity)
+		return [self.store newObjectIDForEntity:entity referenceObject:recordID];
+	else
+		return nil;
+}
+
 @end

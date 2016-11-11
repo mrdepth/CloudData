@@ -14,5 +14,7 @@
 
 - (void) addOperation:(CDOperation*) operation;
 - (void) addOperationWithBlock:(void(^)(CDOperation* operation)) block;
+- (void) suspend;
+- (void) resume;
 
 @end
