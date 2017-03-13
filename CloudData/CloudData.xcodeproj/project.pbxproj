@@ -7,7 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		12D364FC1E72E382000ED70B /* CoudData.h in Headers */ = {isa = PBXBuildFile; fileRef = 12D364FA1E72E382000ED70B /* CoudData.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		126B3DDC1E768FDA00008344 /* Synchronized.swift in Sources */ = {isa = PBXBuildFile; fileRef = 126B3DDB1E768FDA00008344 /* Synchronized.swift */; };
+		126B3DDF1E7696F100008344 /* CloudData.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = 126B3DDD1E7696F100008344 /* CloudData.xcdatamodeld */; };
+		126B3DE21E76978100008344 /* NSData+md5.h in Headers */ = {isa = PBXBuildFile; fileRef = 126B3DE01E76978100008344 /* NSData+md5.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		126B3DE31E76978100008344 /* NSData+md5.m in Sources */ = {isa = PBXBuildFile; fileRef = 126B3DE11E76978100008344 /* NSData+md5.m */; };
+		126B3DE61E7697E000008344 /* CloudKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 126B3DE51E7697E000008344 /* CloudKit.framework */; };
+		126B3DED1E7699F600008344 /* Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 126B3DEC1E7699F600008344 /* Extensions.swift */; };
+		126B3DF01E769DE100008344 /* BackingObjectHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 126B3DEF1E769DE100008344 /* BackingObjectHelper.swift */; };
+		12D364FC1E72E382000ED70B /* CloudData.h in Headers */ = {isa = PBXBuildFile; fileRef = 12D364FA1E72E382000ED70B /* CloudData.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		12D365211E72E3AC000ED70B /* CloudStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12D365201E72E3AC000ED70B /* CloudStore.swift */; };
 		12D365231E72E64B000ED70B /* CloudOperationQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12D365221E72E64B000ED70B /* CloudOperationQueue.swift */; };
 		12D365251E72E66C000ED70B /* CloudOperation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12D365241E72E66C000ED70B /* CloudOperation.swift */; };
@@ -15,8 +22,15 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		12D364F71E72E382000ED70B /* CoudData.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = CoudData.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		12D364FA1E72E382000ED70B /* CoudData.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CoudData.h; sourceTree = "<group>"; };
+		126B3DDB1E768FDA00008344 /* Synchronized.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Synchronized.swift; sourceTree = "<group>"; };
+		126B3DDE1E7696F100008344 /* CloudData.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = CloudData.xcdatamodel; sourceTree = "<group>"; };
+		126B3DE01E76978100008344 /* NSData+md5.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSData+md5.h"; sourceTree = "<group>"; };
+		126B3DE11E76978100008344 /* NSData+md5.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "NSData+md5.m"; sourceTree = "<group>"; };
+		126B3DE51E7697E000008344 /* CloudKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CloudKit.framework; path = System/Library/Frameworks/CloudKit.framework; sourceTree = SDKROOT; };
+		126B3DEC1E7699F600008344 /* Extensions.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Extensions.swift; sourceTree = "<group>"; };
+		126B3DEF1E769DE100008344 /* BackingObjectHelper.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BackingObjectHelper.swift; sourceTree = "<group>"; };
+		12D364F71E72E382000ED70B /* CloudData.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = CloudData.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		12D364FA1E72E382000ED70B /* CloudData.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CloudData.h; sourceTree = "<group>"; };
 		12D364FB1E72E382000ED70B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		12D365201E72E3AC000ED70B /* CloudStore.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CloudStore.swift; sourceTree = "<group>"; };
 		12D365221E72E64B000ED70B /* CloudOperationQueue.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CloudOperationQueue.swift; sourceTree = "<group>"; };
@@ -29,39 +43,55 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				126B3DE61E7697E000008344 /* CloudKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		126B3DE41E7697E000008344 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				126B3DE51E7697E000008344 /* CloudKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		12D364ED1E72E382000ED70B = {
 			isa = PBXGroup;
 			children = (
-				12D364F91E72E382000ED70B /* CoudData */,
+				12D364F91E72E382000ED70B /* CloudData */,
 				12D364F81E72E382000ED70B /* Products */,
+				126B3DE41E7697E000008344 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
 		12D364F81E72E382000ED70B /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				12D364F71E72E382000ED70B /* CoudData.framework */,
+				12D364F71E72E382000ED70B /* CloudData.framework */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		12D364F91E72E382000ED70B /* CoudData */ = {
+		12D364F91E72E382000ED70B /* CloudData */ = {
 			isa = PBXGroup;
 			children = (
-				12D364FA1E72E382000ED70B /* CoudData.h */,
+				12D364FA1E72E382000ED70B /* CloudData.h */,
 				12D364FB1E72E382000ED70B /* Info.plist */,
+				126B3DDB1E768FDA00008344 /* Synchronized.swift */,
+				126B3DE01E76978100008344 /* NSData+md5.h */,
+				126B3DE11E76978100008344 /* NSData+md5.m */,
 				12D365201E72E3AC000ED70B /* CloudStore.swift */,
 				12D365221E72E64B000ED70B /* CloudOperationQueue.swift */,
 				12D365241E72E66C000ED70B /* CloudOperation.swift */,
 				12D365261E72E9F0000ED70B /* Reachability.swift */,
+				126B3DEC1E7699F600008344 /* Extensions.swift */,
+				126B3DEF1E769DE100008344 /* BackingObjectHelper.swift */,
+				126B3DDD1E7696F100008344 /* CloudData.xcdatamodeld */,
 			);
-			path = CoudData;
+			path = CloudData;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -71,16 +101,17 @@
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				12D364FC1E72E382000ED70B /* CoudData.h in Headers */,
+				126B3DE21E76978100008344 /* NSData+md5.h in Headers */,
+				12D364FC1E72E382000ED70B /* CloudData.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXHeadersBuildPhase section */
 
 /* Begin PBXNativeTarget section */
-		12D364F61E72E382000ED70B /* CoudData */ = {
+		12D364F61E72E382000ED70B /* CloudData */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 12D364FF1E72E382000ED70B /* Build configuration list for PBXNativeTarget "CoudData" */;
+			buildConfigurationList = 12D364FF1E72E382000ED70B /* Build configuration list for PBXNativeTarget "CloudData" */;
 			buildPhases = (
 				12D364F21E72E382000ED70B /* Sources */,
 				12D364F31E72E382000ED70B /* Frameworks */,
@@ -91,9 +122,9 @@
 			);
 			dependencies = (
 			);
-			name = CoudData;
+			name = CloudData;
 			productName = CoudData;
-			productReference = 12D364F71E72E382000ED70B /* CoudData.framework */;
+			productReference = 12D364F71E72E382000ED70B /* CloudData.framework */;
 			productType = "com.apple.product-type.framework";
 		};
 /* End PBXNativeTarget section */
@@ -112,7 +143,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 12D364F11E72E382000ED70B /* Build configuration list for PBXProject "CoudData" */;
+			buildConfigurationList = 12D364F11E72E382000ED70B /* Build configuration list for PBXProject "CloudData" */;
 			compatibilityVersion = "Xcode 3.2";
 			developmentRegion = English;
 			hasScannedForEncodings = 0;
@@ -124,7 +155,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				12D364F61E72E382000ED70B /* CoudData */,
+				12D364F61E72E382000ED70B /* CloudData */,
 			);
 		};
 /* End PBXProject section */
@@ -144,9 +175,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				126B3DF01E769DE100008344 /* BackingObjectHelper.swift in Sources */,
 				12D365211E72E3AC000ED70B /* CloudStore.swift in Sources */,
+				126B3DDC1E768FDA00008344 /* Synchronized.swift in Sources */,
 				12D365251E72E66C000ED70B /* CloudOperation.swift in Sources */,
+				126B3DED1E7699F600008344 /* Extensions.swift in Sources */,
+				126B3DDF1E7696F100008344 /* CloudData.xcdatamodeld in Sources */,
 				12D365271E72E9F0000ED70B /* Reachability.swift in Sources */,
+				126B3DE31E76978100008344 /* NSData+md5.m in Sources */,
 				12D365231E72E64B000ED70B /* CloudOperationQueue.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -262,10 +298,11 @@
 				DYLIB_COMPATIBILITY_VERSION = 1;
 				DYLIB_CURRENT_VERSION = 1;
 				DYLIB_INSTALL_NAME_BASE = "@rpath";
-				INFOPLIST_FILE = CoudData/Info.plist;
+				INFOPLIST_FILE = CloudData/Info.plist;
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				IPHONEOS_DEPLOYMENT_TARGET = 9.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
-				PRODUCT_BUNDLE_IDENTIFIER = com.shimanski.CoudData;
+				PRODUCT_BUNDLE_IDENTIFIER = com.shimanski.CloudData;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -282,10 +319,11 @@
 				DYLIB_COMPATIBILITY_VERSION = 1;
 				DYLIB_CURRENT_VERSION = 1;
 				DYLIB_INSTALL_NAME_BASE = "@rpath";
-				INFOPLIST_FILE = CoudData/Info.plist;
+				INFOPLIST_FILE = CloudData/Info.plist;
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				IPHONEOS_DEPLOYMENT_TARGET = 9.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
-				PRODUCT_BUNDLE_IDENTIFIER = com.shimanski.CoudData;
+				PRODUCT_BUNDLE_IDENTIFIER = com.shimanski.CloudData;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 3.0;
@@ -295,7 +333,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		12D364F11E72E382000ED70B /* Build configuration list for PBXProject "CoudData" */ = {
+		12D364F11E72E382000ED70B /* Build configuration list for PBXProject "CloudData" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				12D364FD1E72E382000ED70B /* Debug */,
@@ -304,15 +342,29 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		12D364FF1E72E382000ED70B /* Build configuration list for PBXNativeTarget "CoudData" */ = {
+		12D364FF1E72E382000ED70B /* Build configuration list for PBXNativeTarget "CloudData" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				12D365001E72E382000ED70B /* Debug */,
 				12D365011E72E382000ED70B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCVersionGroup section */
+		126B3DDD1E7696F100008344 /* CloudData.xcdatamodeld */ = {
+			isa = XCVersionGroup;
+			children = (
+				126B3DDE1E7696F100008344 /* CloudData.xcdatamodel */,
+			);
+			currentVersion = 126B3DDE1E7696F100008344 /* CloudData.xcdatamodel */;
+			path = CloudData.xcdatamodeld;
+			sourceTree = "<group>";
+			versionGroupType = wrapper.xcdatamodel;
+		};
+/* End XCVersionGroup section */
 	};
 	rootObject = 12D364EE1E72E382000ED70B /* Project object */;
 }
