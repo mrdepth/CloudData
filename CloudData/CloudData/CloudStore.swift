@@ -27,9 +27,19 @@ extension Notification.Name {
 	static let CloudStoreDidFailCloudImport = Notification.Name(rawValue: "CloudStoreDidFailCloudImport")
 }
 
+enum CloudStoreError: Error {
+	case invalidRecordZoneID
+	case unableToLoadBackingStore
+}
+
+public enum CloudStoreScope: Int {
+	case `public`
+	case `private`
+	case shared
+}
+
 open class CloudStore: NSIncrementalStore {
 
-	private(set) var backingPersistentStoreCoordinator: NSPersistentStoreCoordinator?
 	
 	//MARK: - NSIncrementalStore
 	
@@ -44,13 +54,48 @@ open class CloudStore: NSIncrementalStore {
 			
 		}
 	}
-
 	
 	//MARK: - Private
 	
+	private var backingPersistentStoreCoordinator: NSPersistentStoreCoordinator?
 	private var autoPushTimer: Timer?
 	private var autoPullTimer: Timer?
 	private var accountStatus: CKAccountStatus = .couldNotDetermine
+	private var ubiquityIdentityToken: NSCoding?
+	private var needsInitialImport: Bool = false
+	private var container: CKContainer?
+	
+	private lazy var databaseScope: CloudStoreScope = {
+		if #available(iOS 10.0, *) {
+			guard let value = self.options?[CloudStoreOptions.databaseScopeKey] as? Int else {return .private}
+			return CloudStoreScope(rawValue: value) ?? .private
+		}
+		else {
+			return .private
+		}
+	}()
+	
+	private lazy var recordZoneID: CKRecordZoneID? = {
+		guard let zone = (self.options?[CloudStoreOptions.recordZoneKey] as? String) ?? self.url?.deletingPathExtension().lastPathComponent else {return nil}
+		
+		let ownerName: String
+		if #available(iOS 10.0, *) {
+			ownerName = CKCurrentUserDefaultName
+		} else {
+			ownerName = CKOwnerDefaultName
+		}
+		
+		return CKRecordZoneID(zoneName: zone, ownerName: ownerName)
+	}()
+	
+	private lazy var containerIdentifier: String? = self.options?[CloudStoreOptions.containerIdentifierKey] as? String
+	
+	private lazy var mergePolicyType: NSMergePolicyType = {
+		let mergePolicyType = (self.options?[CloudStoreOptions.mergePolicyType] as? NSMergePolicyType) ?? .mergeByPropertyObjectTrumpMergePolicyType
+		assert(mergePolicyType != .errorMergePolicyType, "NSErrorMergePolicyType is not supported")
+		return mergePolicyType
+	}()
+	
 	
 	private func backingObjectModel(source: NSManagedObjectModel) -> NSManagedObjectModel {
 		let cloudDataObjectModel = NSManagedObjectModel(contentsOf: Bundle(for: CloudStore.self).url(forResource: "CloudData", withExtension: "momd")!)!
@@ -87,20 +132,75 @@ open class CloudStore: NSIncrementalStore {
 		return backingModel;
 	}
 	
+	private var backingPersistentStore: NSPersistentStore?
+	
 	func loadBackingStore() throws {
+		guard let backingPersistentStoreCoordinator = backingPersistentStoreCoordinator else {throw CloudStoreError.unableToLoadBackingStore}
+
+		guard let recordZoneID = recordZoneID else {throw CloudStoreError.invalidRecordZoneID}
 		autoPushTimer = nil
 		autoPullTimer = nil
 		accountStatus = .couldNotDetermine
 
-		let value = options?[CloudStoreOptions.databaseScopeKey] as? String
-		let zone = (options?[CloudStoreOptions.recordZoneKey] as? String) ?? (self.url?.lastPathComponent as? NSString)?.deletingPathExtension
-		let mergePolicyType = (options?[CloudStoreOptions.mergePolicyType] as? NSMergePolicyType) ?? .mergeByPropertyObjectTrumpMergePolicyType
-		let ownerName: String
-		
+
+		self.ubiquityIdentityToken = FileManager.default.ubiquityIdentityToken
+		guard databaseScope == .public || ubiquityIdentityToken != nil else {throw CloudStoreError.unableToLoadBackingStore}
+		let identifier: String
+
 		if #available(iOS 10.0, *) {
-			ownerName = CKCurrentUserDefaultName
-		} else {
-			ownerName = CKOwnerDefaultName
+			if let token = ubiquityIdentityToken, databaseScope == .private {
+				identifier = UUID(ubiquityIdentityToken: token).uuidString
+			}
+			else {
+				identifier = "local"
+			}
 		}
+		else {
+			identifier = "local"
+		}
+		
+		guard let storeURL = url?.appendingPathComponent("\(identifier)/\(containerIdentifier ?? "store")/\(recordZoneID.zoneName).sqlite") else {throw CloudStoreError.unableToLoadBackingStore}
+		try? FileManager.default.createDirectory(at: storeURL.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: nil)
+		
+		backingPersistentStore = try! backingPersistentStoreCoordinator.addPersistentStore(ofType: NSSQLiteStoreType, configurationName: nil, at: storeURL, options: nil)
+		
+		let context = NSManagedObjectContext(concurrencyType: .privateQueueConcurrencyType)
+		context.persistentStoreCoordinator = backingPersistentStoreCoordinator
+		
+		context.performAndWait {
+			let metadata: CloudMetadata = {
+				let request = NSFetchRequest<CloudMetadata>(entityName: "CloudMetadata")
+				request.fetchLimit = 1
+				return (try? context.fetch(request))?.first
+				} () ?? {
+					let metadata = CloudMetadata(entity: NSEntityDescription.entity(forEntityName: "CloudMetadata", in: context)!, insertInto: context)
+					metadata.recordZoneID = recordZoneID
+					return metadata
+				}()
+			if metadata.uuid == nil {
+				metadata.uuid = UUID().uuidString
+			}
+			if context.hasChanges {
+				try? context.save()
+			}
+			
+			self.needsInitialImport = metadata.serverChangeToken == nil
+			var m = self.metadata
+			m?[NSStoreUUIDKey] = metadata.uuid!
+			self.metadata = m
+		}
+		
+		if let containerIdentifier = containerIdentifier {
+			self.container = CKContainer(identifier: containerIdentifier)
+		}
+		else {
+			self.container = CKContainer.default()
+		}
+		loadDatabase()
+	}
+	
+	private func loadDatabase() {
+	
 	}
 }
+

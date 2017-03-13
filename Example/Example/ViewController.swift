@@ -8,10 +8,23 @@
 
 import UIKit
 
+class A {
+	lazy var v: Int = {
+		assert(false)
+		return 10
+	}()
+	
+	func log() throws {
+		print("\(self.v)")
+	}
+}
+
 class ViewController: UIViewController {
 
 	override func viewDidLoad() {
 		super.viewDidLoad()
+		let a = A()
+		try? a.log()
 		// Do any additional setup after loading the view, typically from a nib.
 	}
 
