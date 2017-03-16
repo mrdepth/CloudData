@@ -19,7 +19,7 @@ public struct CloudStoreOptions {
 	static let mergePolicyType: String = "mergePolicyType"
 }
 
-extension Notification.Name {
+public extension Notification.Name {
 	static let CloudStoreDidInitializeCloudAccount = Notification.Name(rawValue: "CloudStoreDidInitializeCloudAccount")
 	static let CloudStoreDidFailtToInitializeCloudAccount = Notification.Name(rawValue: "CloudStoreDidFailtToInitializeCloudAccount")
 	static let CloudStoreDidStartCloudImport = Notification.Name(rawValue: "CloudStoreDidStartCloudImport")
@@ -28,8 +28,11 @@ extension Notification.Name {
 }
 
 enum CloudStoreError: Error {
+	case unknown
 	case invalidRecordZoneID
 	case unableToLoadBackingStore
+	case invalidDatabaseScope
+	case invalidManagedObjectModel
 }
 
 public enum CloudStoreScope: Int {
@@ -38,8 +41,12 @@ public enum CloudStoreScope: Int {
 	case shared
 }
 
+public let CloudStoreErrorKey = "error"
+public let CloudStoreSubscriptionID = "autoUpdate"
+
 open class CloudStore: NSIncrementalStore {
 
+	var entities: [String: NSEntityDescription]?
 	
 	//MARK: - NSIncrementalStore
 	
@@ -51,19 +58,30 @@ open class CloudStore: NSIncrementalStore {
 	
 	open override func loadMetadata() throws {
 		if backingPersistentStoreCoordinator == nil {
+			guard let model = persistentStoreCoordinator?.managedObjectModel else {throw CloudStoreError.invalidManagedObjectModel}
+			entities = model.entitiesByName
+			backingManagedObjectModel = backingObjectModel(source: model)
+			try loadBackingStore()
 			
+			guard backingPersistentStore != nil else {throw CloudStoreError.unknown}
+			backingManagedObjectContext = NSManagedObjectContext(concurrencyType: .privateQueueConcurrencyType)
+			backingManagedObjectContext?.persistentStoreCoordinator = backingPersistentStoreCoordinator
 		}
 	}
 	
 	//MARK: - Private
 	
 	private var backingPersistentStoreCoordinator: NSPersistentStoreCoordinator?
+	private var backingManagedObjectModel: NSManagedObjectModel?
+	private var backingManagedObjectContext: NSManagedObjectContext?
 	private var autoPushTimer: Timer?
 	private var autoPullTimer: Timer?
 	private var accountStatus: CKAccountStatus = .couldNotDetermine
 	private var ubiquityIdentityToken: NSCoding?
 	private var needsInitialImport: Bool = false
 	private var container: CKContainer?
+	private var database: CKDatabase?
+	private let operationQueue = CloudOperationQueue()
 	
 	private lazy var databaseScope: CloudStoreScope = {
 		if #available(iOS 10.0, *) {
@@ -87,7 +105,8 @@ open class CloudStore: NSIncrementalStore {
 		
 		return CKRecordZoneID(zoneName: zone, ownerName: ownerName)
 	}()
-	
+	private var recordZone: CKRecordZone?
+
 	private lazy var containerIdentifier: String? = self.options?[CloudStoreOptions.containerIdentifierKey] as? String
 	
 	private lazy var mergePolicyType: NSMergePolicyType = {
@@ -196,11 +215,163 @@ open class CloudStore: NSIncrementalStore {
 		else {
 			self.container = CKContainer.default()
 		}
-		loadDatabase()
+		try loadDatabase()
 	}
 	
-	private func loadDatabase() {
+	private func loadDatabase() throws {
+		if #available(iOS 10.0, *) {
+			switch databaseScope {
+			case .public:
+				database = container?.database(with: CKDatabaseScope.public)
+			case .private:
+				database = container?.database(with: CKDatabaseScope.private)
+			case .shared:
+				database = container?.database(with: CKDatabaseScope.shared)
+			}
+			
+		} else {
+			switch databaseScope {
+			case .public:
+				database = container?.publicCloudDatabase
+			case .private:
+				database = container?.privateCloudDatabase
+			default:
+				throw CloudStoreError.invalidDatabaseScope
+			}
+		}
+		
+		operationQueue.addOperation {[weak self] operation in
+			guard let strongSelf = self, let container = strongSelf.container else {
+				operation.finish()
+				return
+			}
+			container.accountStatus { (status, error) in
+				if let error = error {
+					NotificationCenter.default.post(name: .CloudStoreDidFailtToInitializeCloudAccount, object: strongSelf, userInfo: [CloudStoreErrorKey : error])
+				}
+				else {
+					strongSelf.accountStatus = status
+					strongSelf.loadRecordZone()
+				}
+				operation.finish(error: error)
+			}
+		}
+	}
 	
+	private func loadRecordZone() {
+		
+		func finish(error: Error? = nil) {
+			if let error = error {
+				NotificationCenter.default.post(name: .CloudStoreDidFailtToInitializeCloudAccount, object: self, userInfo: [CloudStoreErrorKey : error])
+			}
+			else {
+				self.pull()
+				self.loadSubscription()
+				if self.iCloudIsAvailableForWriting {
+					self.autoPushTimer = Timer(timeInterval: 10, target: self, selector: #selector(push), userInfo: nil, repeats: true)
+				}
+				NotificationCenter.default.post(name: .CloudStoreDidInitializeCloudAccount, object: self, userInfo:nil)
+			}
+		}
+		
+		operationQueue.addOperation { [weak self] operation in
+			guard let strongSelf = self,
+				let recordZoneID = strongSelf.recordZoneID,
+				let database = strongSelf.database else {
+				operation.finish()
+				return
+			}
+			
+			let fetchOperation = CKFetchRecordZonesOperation(recordZoneIDs: [recordZoneID])
+			fetchOperation.fetchRecordZonesCompletionBlock = { (zones, error) in
+				if let zone = zones?[recordZoneID] {
+					strongSelf.recordZone = zone
+				}
+				else if let zoneError = (error as? CKError)?.partialErrorsByItemID?[recordZoneID] as? CKError,
+					case CKError.zoneNotFound = zoneError,
+					strongSelf.accountStatus == .available {
+					
+					let zone = CKRecordZone(zoneID: recordZoneID)
+					strongSelf.operationQueue.addOperation { [weak self] operation in
+						guard let strongSelf = self else {
+							operation.finish()
+							return
+						}
+						
+						let modifyOperation = CKModifyRecordZonesOperation(recordZonesToSave: [zone], recordZoneIDsToDelete: nil)
+						modifyOperation.modifyRecordZonesCompletionBlock = { (saved, deleted, error) in
+							if let zone = saved?.first {
+								strongSelf.recordZone = zone
+								finish()
+							}
+							else {
+								finish(error: error ?? CloudStoreError.unknown)
+							}
+							
+							operation.finish()
+						}
+						
+						database.add(modifyOperation)
+					}
+				}
+				else {
+					finish(error: error ?? CloudStoreError.unknown)
+				}
+				operation.finish()
+			}
+			
+			database.add(fetchOperation)
+		}
+	}
+	
+	private func pull() {
+		
+	}
+	
+	private func loadSubscription() {
+		operationQueue.addOperation {[weak self] operation in
+			guard let strongSelf = self,
+				let recordZoneID = strongSelf.recordZoneID,
+				let database = strongSelf.database else {
+					operation.finish()
+					return
+			}
+			database.fetch(withSubscriptionID: CloudStoreSubscriptionID) { (subscription, error) in
+				if subscription != nil {
+					operation.finish(error: error)
+				}
+				else if let error = error as? CKError, case CKError.unknownItem = error {
+					let subscription = CKSubscription(zoneID: recordZoneID, subscriptionID: CloudStoreSubscriptionID, options: [])
+					let info = CKNotificationInfo()
+					info.shouldSendContentAvailable = true
+					subscription.notificationInfo = info
+					
+					let modifyOperation = CKModifySubscriptionsOperation(subscriptionsToSave: [subscription], subscriptionIDsToDelete: nil)
+					modifyOperation.modifySubscriptionsCompletionBlock = { (saved, deleted, error) in
+						operation.finish(error: error)
+					}
+					
+					database.add(modifyOperation)
+				}
+			}
+		}
+	}
+	
+	private var iCloudIsAvailableForReading: Bool {
+		if databaseScope == .public {
+			return database != nil && recordZone != nil
+		}
+		else {
+			return accountStatus == .available && database != nil && recordZone != nil
+		}
+	}
+
+	private var iCloudIsAvailableForWriting: Bool {
+		return accountStatus == .available && database != nil && recordZone != nil
+	}
+	
+	@objc private func push() {
+		
 	}
 }
 
