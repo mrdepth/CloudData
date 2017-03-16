@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		125F89021E7B0DE400E4CCC0 /* CloudData.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 125F89011E7B0DE400E4CCC0 /* CloudData.framework */; };
+		125F89031E7B0DE400E4CCC0 /* CloudData.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 125F89011E7B0DE400E4CCC0 /* CloudData.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		12D3650F1E72E391000ED70B /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12D3650E1E72E391000ED70B /* AppDelegate.swift */; };
 		12D365111E72E391000ED70B /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12D365101E72E391000ED70B /* ViewController.swift */; };
 		12D365141E72E391000ED70B /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 12D365121E72E391000ED70B /* Main.storyboard */; };
@@ -14,7 +16,22 @@
 		12D365191E72E391000ED70B /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 12D365171E72E391000ED70B /* LaunchScreen.storyboard */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		125F89041E7B0DE500E4CCC0 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				125F89031E7B0DE400E4CCC0 /* CloudData.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		125F89011E7B0DE400E4CCC0 /* CloudData.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = CloudData.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		12D3650B1E72E391000ED70B /* Example.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Example.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		12D3650E1E72E391000ED70B /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		12D365101E72E391000ED70B /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
@@ -29,6 +46,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				125F89021E7B0DE400E4CCC0 /* CloudData.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -38,6 +56,7 @@
 		12D365021E72E391000ED70B = {
 			isa = PBXGroup;
 			children = (
+				125F89011E7B0DE400E4CCC0 /* CloudData.framework */,
 				12D3650D1E72E391000ED70B /* Example */,
 				12D3650C1E72E391000ED70B /* Products */,
 			);
@@ -74,6 +93,7 @@
 				12D365071E72E391000ED70B /* Sources */,
 				12D365081E72E391000ED70B /* Frameworks */,
 				12D365091E72E391000ED70B /* Resources */,
+				125F89041E7B0DE500E4CCC0 /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
@@ -297,6 +317,7 @@
 				12D3651F1E72E391000ED70B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};

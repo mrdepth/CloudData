@@ -25,6 +25,7 @@ public extension Notification.Name {
 	static let CloudStoreDidStartCloudImport = Notification.Name(rawValue: "CloudStoreDidStartCloudImport")
 	static let CloudStoreDidFinishCloudImport = Notification.Name(rawValue: "CloudStoreDidFinishCloudImport")
 	static let CloudStoreDidFailCloudImport = Notification.Name(rawValue: "CloudStoreDidFailCloudImport")
+	static let CloudStoreDidReceiveRemoteNotification = Notification.Name(rawValue: "CloudStoreDidReceiveRemoteNotification")
 }
 
 enum CloudStoreError: Error {
@@ -44,9 +45,12 @@ public enum CloudStoreScope: Int {
 public let CloudStoreErrorKey = "error"
 public let CloudStoreSubscriptionID = "autoUpdate"
 
+let CloudRecordProperty = "_CloudRecord"
+
 open class CloudStore: NSIncrementalStore {
 
 	var entities: [String: NSEntityDescription]?
+	var backingObjectHelper: BackingObjectHelper?
 	
 	//MARK: - NSIncrementalStore
 	
@@ -54,7 +58,9 @@ open class CloudStore: NSIncrementalStore {
 		super.init(persistentStoreCoordinator: root, configurationName: name, at: url, options: options)
 	}
 	
-
+	deinit {
+		NotificationCenter.default.removeObserver(self)
+	}
 	
 	open override func loadMetadata() throws {
 		if backingPersistentStoreCoordinator == nil {
@@ -66,7 +72,39 @@ open class CloudStore: NSIncrementalStore {
 			guard backingPersistentStore != nil else {throw CloudStoreError.unknown}
 			backingManagedObjectContext = NSManagedObjectContext(concurrencyType: .privateQueueConcurrencyType)
 			backingManagedObjectContext?.persistentStoreCoordinator = backingPersistentStoreCoordinator
+			
+			let center = NotificationCenter.default
+			
+			center.addObserver(self, selector: #selector(managedObjectContextDidSave(_:)), name: .NSManagedObjectContextDidSave, object: nil)
+			center.addObserver(self, selector: #selector(ubiquityIdentityDidChange(_:)), name: .NSUbiquityIdentityDidChange, object: nil)
+			center.addObserver(self, selector: #selector(didReceiveRemoteNotification(_:)), name: .CloudStoreDidReceiveRemoteNotification, object: nil)
+			center.addObserver(self, selector: #selector(didBecomeActive(_:)), name: .UIApplicationDidBecomeActive, object: nil)
+			center.addObserver(self, selector: #selector(willResignActive(_:)), name: .UIApplicationWillResignActive, object: nil)
 		}
+	}
+	
+	open override func execute(_ request: NSPersistentStoreRequest, with context: NSManagedObjectContext?) throws -> Any {
+		
+	}
+	
+	open override func obtainPermanentIDs(for array: [NSManagedObject]) throws -> [NSManagedObjectID] {
+		
+	}
+	
+	open override func newValuesForObject(with objectID: NSManagedObjectID, with context: NSManagedObjectContext) throws -> NSIncrementalStoreNode {
+		
+	}
+	
+	open override func newValue(forRelationship relationship: NSRelationshipDescription, forObjectWith objectID: NSManagedObjectID, with context: NSManagedObjectContext?) throws -> Any {
+		
+	}
+	
+	open override func newObjectID(for entity: NSEntityDescription, referenceObject data: Any) -> NSManagedObjectID {
+		
+	}
+	
+	open override func referenceObject(for objectID: NSManagedObjectID) -> Any {
+		
 	}
 	
 	//MARK: - Private
@@ -77,7 +115,7 @@ open class CloudStore: NSIncrementalStore {
 	private var autoPushTimer: Timer?
 	private var autoPullTimer: Timer?
 	private var accountStatus: CKAccountStatus = .couldNotDetermine
-	private var ubiquityIdentityToken: NSCoding?
+	private var ubiquityIdentityToken: (NSObjectProtocol & NSCoding)?
 	private var needsInitialImport: Bool = false
 	private var container: CKContainer?
 	private var database: CKDatabase?
@@ -133,7 +171,7 @@ open class CloudStore: NSIncrementalStore {
 			properties.append(relationship)
 			
 			let inverseRelationship = NSRelationshipDescription()
-			inverseRelationship.name = "_CloudRecord"
+			inverseRelationship.name = CloudRecordProperty
 			inverseRelationship.deleteRule = .nullifyDeleteRule
 			inverseRelationship.maxCount = 1
 			inverseRelationship.isOptional = false
@@ -152,6 +190,8 @@ open class CloudStore: NSIncrementalStore {
 	}
 	
 	private var backingPersistentStore: NSPersistentStore?
+	
+	//MARK: - Loading
 	
 	func loadBackingStore() throws {
 		guard let backingPersistentStoreCoordinator = backingPersistentStoreCoordinator else {throw CloudStoreError.unableToLoadBackingStore}
@@ -324,7 +364,7 @@ open class CloudStore: NSIncrementalStore {
 		}
 	}
 	
-	private func pull() {
+	@objc private func pull() {
 		
 	}
 	
@@ -370,8 +410,83 @@ open class CloudStore: NSIncrementalStore {
 		return accountStatus == .available && database != nil && recordZone != nil
 	}
 	
+	//MARK: - Notification handlers
+	
+	func managedObjectContextDidSave(_ note: Notification) {
+		guard let context = note.object as? NSManagedObjectContext else {return}
+		guard context != backingManagedObjectContext && context.persistentStoreCoordinator == backingPersistentStoreCoordinator else {return}
+		backingManagedObjectContext?.perform {
+			self.backingManagedObjectContext?.mergeChanges(fromContextDidSave: note)
+		}
+	}
+
+	func ubiquityIdentityDidChange(_ note: Notification) {
+		guard let token = FileManager.default.ubiquityIdentityToken else {return}
+		if token.isEqual(ubiquityIdentityToken), let store = backingPersistentStore {
+			try? backingPersistentStoreCoordinator?.remove(store)
+			try? loadBackingStore()
+		}
+	}
+
+	func didReceiveRemoteNotification(_ note: Notification) {
+		guard let info = note.userInfo else {return}
+		guard let containerIdentifier = containerIdentifier else {return}
+		guard let recordZoneID = recordZoneID else {return}
+		
+		let notification = CKRecordZoneNotification(fromRemoteNotificationDictionary: info)
+		guard notification.containerIdentifier == containerIdentifier && notification.recordZoneID == recordZoneID else {return}
+		NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(pull), object: nil)
+		perform(#selector(pull), with: nil, afterDelay: 1)
+	}
+
+	func didBecomeActive(_ note: Notification) {
+		operationQueue.isSuspended = false
+		NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(pull), object: nil)
+		perform(#selector(pull), with: nil, afterDelay: 3)
+		if let timer = autoPushTimer {
+			RunLoop.main.add(timer, forMode: .defaultRunLoopMode)
+		}
+		if let timer = autoPullTimer {
+			RunLoop.main.add(timer, forMode: .defaultRunLoopMode)
+		}
+	}
+
+	func willResignActive(_ note: Notification) {
+		operationQueue.isSuspended = true
+		NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(pull), object: nil)
+		autoPushTimer?.invalidate()
+		autoPullTimer?.invalidate()
+	}
+	
+	//MARK: - Push/Pull
+
 	@objc private func push() {
 		
+	}
+	
+	//MARK: - Save/Fetch requests
+	
+	func execute(_ request: NSSaveChangesRequest, with context: NSManagedObjectContext?) throws -> Any {
+		guard let helper = self.backingObjectHelper else {return []}
+		var objects = request.insertedObjects?.union(request.deletedObjects ?? Set())
+		
+		backingManagedObjectContext?.perform {
+			func backingObject(from: NSManagedObject) -> NSManagedObject? {
+				guard let record = helper.record(objectID: from.objectID) else {return nil}
+				guard let recordType = record.recordType else {return nil}
+				
+				return record.value(forKey: recordType) as? NSManagedObject
+			}
+			
+			for object in request.insertedObjects ?? Set() {
+				guard let record = helper.record(objectID: object.objectID) else {continue}
+				guard let recordType = record.recordType else {continue}
+				let bo = NSEntityDescription.insertNewObject(forEntityName: object.entity.name!, into: self.backingManagedObjectContext!)
+				bo.setValue(record, forKey: CloudRecordProperty)
+				record.setValue(bo, forKey: recordType)
+			}
+		}
+		return []
 	}
 }
 

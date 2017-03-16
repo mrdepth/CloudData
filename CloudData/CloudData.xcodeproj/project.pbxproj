@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		125F89001E7B0D0B00E4CCC0 /* NotificationObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125F88FF1E7B0D0B00E4CCC0 /* NotificationObserver.swift */; };
 		126B3DDC1E768FDA00008344 /* Synchronized.swift in Sources */ = {isa = PBXBuildFile; fileRef = 126B3DDB1E768FDA00008344 /* Synchronized.swift */; };
 		126B3DDF1E7696F100008344 /* CloudData.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = 126B3DDD1E7696F100008344 /* CloudData.xcdatamodeld */; };
 		126B3DE21E76978100008344 /* NSData+md5.h in Headers */ = {isa = PBXBuildFile; fileRef = 126B3DE01E76978100008344 /* NSData+md5.h */; settings = {ATTRIBUTES = (Public, ); }; };
@@ -22,6 +23,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		125F88FF1E7B0D0B00E4CCC0 /* NotificationObserver.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NotificationObserver.swift; sourceTree = "<group>"; };
 		126B3DDB1E768FDA00008344 /* Synchronized.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Synchronized.swift; sourceTree = "<group>"; };
 		126B3DDE1E7696F100008344 /* CloudData.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = CloudData.xcdatamodel; sourceTree = "<group>"; };
 		126B3DE01E76978100008344 /* NSData+md5.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSData+md5.h"; sourceTree = "<group>"; };
@@ -89,6 +91,7 @@
 				12D365261E72E9F0000ED70B /* Reachability.swift */,
 				126B3DEC1E7699F600008344 /* Extensions.swift */,
 				126B3DEF1E769DE100008344 /* BackingObjectHelper.swift */,
+				125F88FF1E7B0D0B00E4CCC0 /* NotificationObserver.swift */,
 				126B3DDD1E7696F100008344 /* CloudData.xcdatamodeld */,
 			);
 			path = CloudData;
@@ -181,6 +184,7 @@
 				12D365251E72E66C000ED70B /* CloudOperation.swift in Sources */,
 				126B3DED1E7699F600008344 /* Extensions.swift in Sources */,
 				126B3DDF1E7696F100008344 /* CloudData.xcdatamodeld in Sources */,
+				125F89001E7B0D0B00E4CCC0 /* NotificationObserver.swift in Sources */,
 				12D365271E72E9F0000ED70B /* Reachability.swift in Sources */,
 				126B3DE31E76978100008344 /* NSData+md5.m in Sources */,
 				12D365231E72E64B000ED70B /* CloudOperationQueue.swift in Sources */,

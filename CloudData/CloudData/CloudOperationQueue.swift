@@ -21,21 +21,21 @@ class CloudOperationQueue: NSObject {
 		}
 	}
 	
-	private var suspended: Bool = false {
+	var isSuspended: Bool = false {
 		didSet {
-			if suspended == false {
+			if isSuspended == false {
 				handleQueue()
 			}
 		}
 	}
 	
-	private var observer: NSObjectProtocol?
+	private var observer: NotificationObserver?
 	
 	override init() {
 		super.init()
 		
 		if let reachability = reachability, reachability.startNotifier() {
-			observer = NotificationCenter.default.addObserver(forName: .ReachabilityChanged, object: reachability, queue: .main) {[weak self] _ in
+			observer = NotificationCenter.default.addNotificationObserver(forName: .ReachabilityChanged, object: reachability, queue: .main) {[weak self] _ in
 				guard let strongSelf = self else {return}
 				if strongSelf.isReachable {
 					strongSelf.handleQueue()
@@ -94,7 +94,7 @@ class CloudOperationQueue: NSObject {
 	}
 	
 	@objc private func handleQueue() {
-		guard !suspended else {return}
+		guard !isSuspended else {return}
 		DispatchQueue.global(qos: .default).async {
 			autoreleasepool {
 				synchronized(self) {

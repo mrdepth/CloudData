@@ -10,13 +10,13 @@ import Foundation
 import CoreData
 
 struct BackingObjectHelper {
-	let store: CloudStore
+	weak var store: CloudStore?
 	let managedObjectContext: NSManagedObjectContext
 	
 	func backingObject(objectID: NSManagedObjectID) -> NSManagedObject? {
-		guard let ref = store.referenceObject(for: objectID) as? String else {return nil}
+		guard let ref = store?.referenceObject(for: objectID) as? String else {return nil}
 		let request = NSFetchRequest<NSManagedObject>(entityName: objectID.entity.name!)
-		request.predicate = NSPredicate(format: "_CloudRecord.recordID == %@", ref)
+		request.predicate = NSPredicate(format: "\(CloudRecordProperty).recordID == %@", ref)
 		request.fetchLimit = 1
 		return (try? managedObjectContext.fetch(request))?.first
 	}
@@ -28,7 +28,7 @@ struct BackingObjectHelper {
 	}
 	
 	func record(objectID: NSManagedObjectID) -> CloudRecord? {
-		guard let ref = store.referenceObject(for: objectID) as? String else {return nil}
+		guard let ref = store?.referenceObject(for: objectID) as? String else {return nil}
 		return record(recordID: ref)
 	}
 
