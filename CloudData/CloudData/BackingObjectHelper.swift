@@ -39,13 +39,19 @@ struct BackingObjectHelper {
 		return (try? managedObjectContext.fetch(request))?.first
 	}
 	
-//	func objectID(backingObject: NSManagedObject) -> NSManagedObject? {
-//		guard let record = backingObject.value(forKey: "_CloudRecord") as? CloudRecord else {return nil}
-//		return store.newObjectID(for: s, referenceObject: <#T##Any#>)
-//	}
-//	
-//	func objectID(recordID: String, entityName: String) -> NSManagedObject? {
-//	}
+	func objectID(backingObject: NSManagedObject) -> NSManagedObjectID? {
+		guard let store = store else {return nil}
+		guard let record = backingObject.value(forKey: CloudRecordProperty) as? CloudRecord else {return nil}
+		guard let entity = store.entities?[backingObject.entity.name!] else {return nil}
+		
+		return store.newObjectID(for: entity, referenceObject: record.recordID!)
+	}
+	
+	func objectID(recordID: String, entityName: String) -> NSManagedObjectID? {
+		guard let store = store else {return nil}
+		guard let entity = store.entities?[entityName] else {return nil}
+		return store.newObjectID(for: entity, referenceObject: recordID)
+	}
 
 }
 
