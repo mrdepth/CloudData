@@ -312,6 +312,12 @@ open class CloudStore: NSIncrementalStore {
 		}
 		recordEntity.properties = properties;
 		
+		let names = Set(cloudDataObjectModel.entities.flatMap({$0.name}))
+		var cloudEndities = backingModel.entities.filter({names.contains($0.name!)})
+		cloudEndities.append(contentsOf: backingModel.entities(forConfigurationName: configurationName) ?? [])
+		
+		backingModel.setEntities(cloudEndities, forConfigurationName: configurationName)
+		
 		return backingModel;
 	}
 	
@@ -349,7 +355,7 @@ open class CloudStore: NSIncrementalStore {
 		guard let storeURL = url?.appendingPathComponent("\(identifier)/\(containerIdentifier ?? "store")/\(recordZoneID.zoneName).sqlite") else {throw CloudStoreError.unableToLoadBackingStore}
 		try? FileManager.default.createDirectory(at: storeURL.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: nil)
 		
-		backingPersistentStore = try! backingPersistentStoreCoordinator.addPersistentStore(ofType: NSSQLiteStoreType, configurationName: nil, at: storeURL, options: nil)
+		backingPersistentStore = try! backingPersistentStoreCoordinator.addPersistentStore(ofType: NSSQLiteStoreType, configurationName: configurationName, at: storeURL, options: nil)
 		
 		let context = NSManagedObjectContext(concurrencyType: .privateQueueConcurrencyType)
 		context.persistentStoreCoordinator = backingPersistentStoreCoordinator
