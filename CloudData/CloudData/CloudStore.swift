@@ -13,22 +13,22 @@ import CloudKit
 public let CloudStoreType: String = "CloudData.CloudStore"
 
 public struct CloudStoreOptions {
-	static let containerIdentifierKey: String = "containerIdentifierKey"
-	static let databaseScopeKey: String = "databaseScopeKey"
-	static let recordZoneKey: String = "recordZoneKey"
-	static let mergePolicyType: String = "mergePolicyType"
+	public static let containerIdentifierKey: String = "containerIdentifierKey"
+	public static let databaseScopeKey: String = "databaseScopeKey"
+	public static let recordZoneKey: String = "recordZoneKey"
+	public static let mergePolicyType: String = "mergePolicyType"
 }
 
 public extension Notification.Name {
-	static let CloudStoreDidInitializeCloudAccount = Notification.Name(rawValue: "CloudStoreDidInitializeCloudAccount")
-	static let CloudStoreDidFailtToInitializeCloudAccount = Notification.Name(rawValue: "CloudStoreDidFailtToInitializeCloudAccount")
-	static let CloudStoreDidStartCloudImport = Notification.Name(rawValue: "CloudStoreDidStartCloudImport")
-	static let CloudStoreDidFinishCloudImport = Notification.Name(rawValue: "CloudStoreDidFinishCloudImport")
-	static let CloudStoreDidFailCloudImport = Notification.Name(rawValue: "CloudStoreDidFailCloudImport")
-	static let CloudStoreDidReceiveRemoteNotification = Notification.Name(rawValue: "CloudStoreDidReceiveRemoteNotification")
+	public static let CloudStoreDidInitializeCloudAccount = Notification.Name(rawValue: "CloudStoreDidInitializeCloudAccount")
+	public static let CloudStoreDidFailtToInitializeCloudAccount = Notification.Name(rawValue: "CloudStoreDidFailtToInitializeCloudAccount")
+	public static let CloudStoreDidStartCloudImport = Notification.Name(rawValue: "CloudStoreDidStartCloudImport")
+	public static let CloudStoreDidFinishCloudImport = Notification.Name(rawValue: "CloudStoreDidFinishCloudImport")
+	public static let CloudStoreDidFailCloudImport = Notification.Name(rawValue: "CloudStoreDidFailCloudImport")
+	public static let CloudStoreDidReceiveRemoteNotification = Notification.Name(rawValue: "CloudStoreDidReceiveRemoteNotification")
 }
 
-enum CloudStoreError: Error {
+public enum CloudStoreError: Error {
 	case unknown
 	case invalidRecordZoneID
 	case unableToLoadBackingStore
@@ -159,7 +159,7 @@ open class CloudStore: NSIncrementalStore {
 			}
 		}
 		if let values = values {
-			return NSIncrementalStoreNode(objectID: objectID, withValues: values ?? [:], version: version)
+			return NSIncrementalStoreNode(objectID: objectID, withValues: values, version: version)
 		}
 		else {
 			throw NSError(domain: NSSQLiteErrorDomain, code: NSSQLiteError, userInfo: nil)
@@ -182,12 +182,24 @@ open class CloudStore: NSIncrementalStore {
 			}
 			else if let backingObject = helper.backingObject(objectID: objectID) {
 				if relationship.isToMany {
-					var set = Set<NSManagedObjectID>()
-					for object in (backingObject.value(forKey: relationship.name) as? Set<NSManagedObject>) ?? Set() {
-						guard let objectID = helper.objectID(backingObject: object) else {continue}
-						set.insert(objectID)
+					let value = backingObject.value(forKey: relationship.name)
+					if relationship.isOrdered {
+						let set = NSMutableOrderedSet()
+						for object in value as? NSOrderedSet ?? NSOrderedSet() {
+							guard let object = object as? NSManagedObject else {continue}
+							guard let objectID = helper.objectID(backingObject: object) else {continue}
+							set.add(objectID)
+						}
+						result = set;
 					}
-					result = set;
+					else {
+						var set = Set<NSManagedObjectID>()
+						for object in (backingObject.value(forKey: relationship.name) as? Set<NSManagedObject>) ?? Set() {
+							guard let objectID = helper.objectID(backingObject: object) else {continue}
+							set.insert(objectID)
+						}
+						result = set;
+					}
 				}
 				else if let object = backingObject.value(forKey: relationship.name) as? NSManagedObject,
 					let objectID = helper.objectID(backingObject: object) {
@@ -709,12 +721,23 @@ open class CloudStore: NSIncrementalStore {
 					}
 					else if let relationship = property as? NSRelationshipDescription {
 						if relationship.isToMany {
-							var set = Set<NSManagedObject>()
-							for object in value as? Set<NSManagedObject> ?? Set() {
-								guard let reference = backingObjectFrom(object) else {continue}
-								set.insert(reference)
+							if relationship.isOrdered {
+								let set = NSMutableOrderedSet()
+								for object in value as? NSOrderedSet ?? NSOrderedSet() {
+									guard let object = object as? NSManagedObject else {continue}
+									guard let reference = backingObjectFrom(object) else {continue}
+									set.add(reference)
+								}
+								backingObject.setValue(set, forKey: key)
 							}
-							backingObject.setValue(set, forKey: key)
+							else {
+								var set = Set<NSManagedObject>()
+								for object in value as? Set<NSManagedObject> ?? Set() {
+									guard let reference = backingObjectFrom(object) else {continue}
+									set.insert(reference)
+								}
+								backingObject.setValue(set, forKey: key)
+							}
 						}
 						else if let object = value as? NSManagedObject {
 							backingObject.setValue(backingObjectFrom(object), forKey: key)

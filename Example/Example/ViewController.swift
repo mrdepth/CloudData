@@ -53,10 +53,15 @@ class ViewController: UITableViewController, NSFetchedResultsControllerDelegate 
 	
 	@IBAction func onAdd(_ sender: Any) {
 		let parent = Parent(context: managedObjectContext)
-		let child = Child(context: managedObjectContext)
-		child.parent = parent
 		parent.name = UUID().uuidString
-		child.name = UUID().uuidString
+		var child = Child(context: managedObjectContext)
+		child.parent = parent
+		child.name = "Child 1"
+		
+		child = Child(context: managedObjectContext)
+		child.parent = parent
+		child.name = "Child 2"
+
 		try? managedObjectContext.save()
 	}
 	
@@ -73,7 +78,7 @@ class ViewController: UITableViewController, NSFetchedResultsControllerDelegate 
 	override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
 		let cell = tableView.dequeueReusableCell(withIdentifier: "Cell", for: indexPath)
 		let parent = result?.object(at: indexPath)
-		let child = parent?.children?.anyObject() as? Child
+		let child = parent?.children?.firstObject as? Child
 		
 		cell.textLabel?.text = parent?.name
 		cell.detailTextLabel?.text = child?.name

@@ -146,7 +146,8 @@ class CloudPullOperation: CloudOperation {
 							guard let reference = value as? CKReference else {return []}
 							return [reference]
 						}()
-						var set = Set<NSManagedObject>()
+						//var set = Set<NSManagedObject>()
+						var set = [NSManagedObject]()
 
 						for reference in references {
 							guard let objectID = relationship.managedReference(from: reference, store: self.store) else {continue}
@@ -154,9 +155,16 @@ class CloudPullOperation: CloudOperation {
 							if objc_getAssociatedObject(referenceObject, CKRecordKey) == nil {
 								objc_setAssociatedObject(referenceObject, CKRecordKey, CKRecord(recordType: relationship.destinationEntity!.name!, recordID: reference.recordID), .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
 							}
-							set.insert(referenceObject)
+							//set.insert(referenceObject)
+							set.append(referenceObject)
 						}
-						object.setValue(set, forKey: relationship.name)
+						//object.setValue(set, forKey: relationship.name)
+						if relationship.isOrdered {
+							object.setValue(NSOrderedSet(array: set), forKey: relationship.name)
+						}
+						else {
+							object.setValue(NSSet(array: set), forKey: relationship.name)
+						}
 					}
 					else {
 						guard let reference = value as? CKReference else {continue}

@@ -146,14 +146,14 @@ extension NSRelationshipDescription {
 		if isToMany {
 			guard let value = value as? [CKReference] else {return NSNull()}
 			
-			var set = Set<NSManagedObjectID>()
+			var set = [NSManagedObjectID]()
 
 			for reference in value {
 				if let objectID = managedReference(from: reference, store: store) {
-					set.insert(objectID)
+					set.append(objectID)
 				}
 			}
-			return set
+			return isOrdered ? NSOrderedSet(array: set) : NSSet(array: set)
 		}
 		else {
 			if let reference = value as? CKReference ?? (value as? [CKReference])?.last {
@@ -225,5 +225,27 @@ extension CKRecord {
 		}
 		
 		return values
+	}
+}
+
+protocol SetCollection {
+	func add(_ object: Any)
+}
+
+extension NSMutableSet: SetCollection {
+	
+}
+
+extension NSMutableOrderedSet: SetCollection {
+}
+
+struct AnySetCollection<U: SetCollection>: SetCollection {
+	let base: U
+	init (base: U) {
+		self.base = base
+	}
+	
+	func add(_ object: Any) {
+		base.add(object)
 	}
 }
