@@ -33,7 +33,7 @@ struct BackingObjectHelper {
 	}
 
 	func record(recordID: String) -> CloudRecord? {
-		let request = NSFetchRequest<CloudRecord>(entityName: "CDRecord")
+		let request = NSFetchRequest<CloudRecord>(entityName: "CloudRecord")
 		request.predicate = NSPredicate(format:"recordID == %@", recordID)
 		request.fetchLimit = 1
 		return (try? managedObjectContext.fetch(request))?.first

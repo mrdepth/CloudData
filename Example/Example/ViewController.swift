@@ -8,52 +8,91 @@
 
 import UIKit
 import CloudData
+import CoreData
 
-let Note = Notification.Name("Note")
+class ViewController: UITableViewController, NSFetchedResultsControllerDelegate {
+	
+	lazy var managedObjectModel = NSManagedObjectModel(contentsOf: Bundle.main.url(forResource: "Example", withExtension: "momd")!)!
+	
+	lazy var coordinator: NSPersistentStoreCoordinator = {
+		let url = URL(fileURLWithPath: NSSearchPathForDirectoriesInDomains(.applicationSupportDirectory, .userDomainMask, true).first!).appendingPathComponent("example.sqlie")
 
-class A {
-	var observer: NotificationObserver?
+		let coordinator = NSPersistentStoreCoordinator(managedObjectModel: self.managedObjectModel)
+		try! coordinator.addPersistentStore(ofType: CloudStoreType, configurationName: nil, at: url, options: nil)
+		return coordinator
+	}()
 	
-	init() {
-		observer = NotificationCenter.default.addNotificationObserver(forName: Note, object: nil, queue: nil) { [weak self] note in
-			print("\(self)")
-//			print("\(note)")
-		}
-	}
-	
-	func f() {
-		func ff() {
-			print("\(self)")
-		}
-		
-		DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-			print("async")
-			ff()
-		}
-	}
-	
-	deinit {
-		print(#function)
-	}
-}
-
-class ViewController: UIViewController {
+	lazy var managedObjectContext: NSManagedObjectContext = {
+		let context = NSManagedObjectContext(concurrencyType: .mainQueueConcurrencyType)
+		context.persistentStoreCoordinator = self.coordinator
+		return context
+	}()
 
 	override func viewDidLoad() {
 		super.viewDidLoad()
-		let a = A()
-		a.f()
-		NotificationCenter.default.post(name: Note, object: nil)
-		DispatchQueue.main.async {
-			NotificationCenter.default.post(name: Note, object: nil)
+		
+		let request = NSFetchRequest<Parent>(entityName: "Parent")
+		request.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]
+		result = NSFetchedResultsController(fetchRequest: request, managedObjectContext: managedObjectContext, sectionNameKeyPath: nil, cacheName: nil)
+		result?.delegate = self
+		try? result?.performFetch()
+		
+		NotificationCenter.default.addObserver(forName: .NSManagedObjectContextDidSave, object: nil, queue: .main) { [weak self] (note) in
+			guard let strongSelf = self else {return}
+			guard let other = note.object as? NSManagedObjectContext else {return}
+			if other.persistentStoreCoordinator == strongSelf.managedObjectContext.persistentStoreCoordinator {
+				strongSelf.managedObjectContext.mergeChanges(fromContextDidSave: note)
+			}
 		}
 	}
-
+	
 	override func didReceiveMemoryWarning() {
 		super.didReceiveMemoryWarning()
 		// Dispose of any resources that can be recreated.
 	}
+	
+	@IBAction func onAdd(_ sender: Any) {
+		let parent = Parent(context: managedObjectContext)
+		let child = Child(context: managedObjectContext)
+		child.parent = parent
+		parent.name = UUID().uuidString
+		child.name = UUID().uuidString
+		try? managedObjectContext.save()
+	}
+	
+	var result: NSFetchedResultsController<Parent>?
+	
+	override func numberOfSections(in tableView: UITableView) -> Int {
+		return result?.sections?.count ?? 0
+	}
+	
+	override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+		return result?.sections?[section].numberOfObjects ?? 0
+	}
+	
+	override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+		let cell = tableView.dequeueReusableCell(withIdentifier: "Cell", for: indexPath)
+		let parent = result?.object(at: indexPath)
+		let child = parent?.children?.anyObject() as? Child
+		
+		cell.textLabel?.text = parent?.name
+		cell.detailTextLabel?.text = child?.name
+		return cell
+	}
+	
+	override func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCellEditingStyle {
+		return .delete
+	}
 
+	
+	override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {
+		let parent = result?.object(at: indexPath)
+		parent?.managedObjectContext?.delete(parent!)
+		try? parent?.managedObjectContext?.save()
+	}
+	func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
+		tableView.reloadData()
+	}
 
 }
 

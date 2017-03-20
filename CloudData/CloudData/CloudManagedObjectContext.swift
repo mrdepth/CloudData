@@ -12,9 +12,9 @@ import CoreData
 class CloudManagedObjectContext: NSManagedObjectContext {
 	var loadFromCache: Bool = false
 	
-	func cachedObject(with objectID: NSManagedObjectID) -> NSManagedObject {
+	func cachedObject(with objectID: NSManagedObjectID) -> NSManagedObject? {
 		loadFromCache = true
-		let result = object(with: objectID)
+		let result = try? existingObject(with: objectID)
 		loadFromCache = false
 		return result
 	}

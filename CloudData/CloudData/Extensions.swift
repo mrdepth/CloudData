@@ -39,7 +39,7 @@ extension NSAttributeDescription {
 				return NSKeyedArchiver.archivedData(withRootObject: value)
 			}
 		}
-		return nil
+		return value
 	}
 	
 	func reverseTransformedValue(_ value: Any?) -> Any? {
@@ -67,7 +67,7 @@ extension NSAttributeDescription {
 				return NSKeyedUnarchiver.unarchiveObject(with: data)
 			}
 		}
-		return nil
+		return value
 	}
 	
 	func ckRecordValue(from backingObject: NSManagedObject) -> CKRecordValue? {
@@ -179,6 +179,31 @@ extension NSManagedObject {
 
 
 extension CKRecord {
+	
+	func changedValues(object: NSManagedObject, entity: NSEntityDescription) -> [String: Any] {
+		assert(recordType == object.entity.name)
+		var diff = [String: Any]()
+		
+		for property in entity.properties {
+			if let attribute = property as? NSAttributeDescription {
+				let value1: NSObjectProtocol = attribute.ckRecordValue(from: object) ?? NSNull()
+				let value2: NSObjectProtocol = self[attribute.name] ?? NSNull()
+				if !value1.isEqual(value2) {
+					diff[attribute.name] = value1
+				}
+			}
+			else if let relationship = property as? NSRelationshipDescription {
+				if relationship.shouldSerialize {
+					let value1: NSObjectProtocol = relationship.ckReference(from: object, recordZoneID: self.recordID.zoneID) as? NSObjectProtocol ?? NSNull()
+					let value2: NSObjectProtocol = self[relationship.name] ?? NSNull()
+					if !value1.isEqual(value2) {
+						diff[relationship.name] = value1
+					}
+				}
+			}
+		}
+		return diff
+	}
 	
 	func nodeValues(store: CloudStore, includeToManyRelationships: Bool) -> [String: Any] {
 		guard let entity = store.entities?[recordType] else {return [:]}

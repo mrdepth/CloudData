@@ -12,7 +12,7 @@ class CloudOperationQueue: NSObject {
 	var allowsWWAN: Bool = true
 	private let reachability = Reachability()
 	private(set) var operations = [CloudOperation]()
-	private var handleDate: Date?
+//	private var handleDate: Date?
 	
 	private var currentOperation: CloudOperation? {
 		didSet {
@@ -99,14 +99,22 @@ class CloudOperationQueue: NSObject {
 			autoreleasepool {
 				synchronized(self) {
 					guard self.currentOperation == nil, let operation = self.operations.first, self.isReachable else {return}
-					if let fireDate = operation.fireDate, fireDate <= Date() {
+					let fireDate = operation.fireDate ?? .distantPast
+					if fireDate <= Date() {
 						self.currentOperation = operation
 						operation.start()
 					}
-					else if let handleDate = self.handleDate, handleDate > Date() {
-						let t = -handleDate.timeIntervalSinceNow
-						self.perform(#selector(CloudOperationQueue.handleQueue), with: nil, afterDelay: t)
+					else {
+						let t = fireDate.timeIntervalSinceNow
+						DispatchQueue.main.async {
+							NSObject.cancelPreviousPerformRequests(withTarget: self)
+							self.perform(#selector(CloudOperationQueue.handleQueue), with: nil, afterDelay: t)
+						}
 					}
+//					else if let handleDate = self.handleDate, handleDate > Date() {
+//						let t = -handleDate.timeIntervalSinceNow
+//						self.perform(#selector(CloudOperationQueue.handleQueue), with: nil, afterDelay: t)
+//					}
 				}
 			}
 		}

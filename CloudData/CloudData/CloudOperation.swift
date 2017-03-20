@@ -37,6 +37,13 @@ class CloudOperation: Operation {
 		default:
 			break
 		}
+		
+		willChangeValue(forKey: "isFinished")
+		willChangeValue(forKey: "isExecuting")
+		_finished = true
+		_executing = false
+		didChangeValue(forKey: "isExecuting")
+		didChangeValue(forKey: "isFinished")
 	}
 	
 	func retry(after: TimeInterval) {

@@ -10,7 +10,7 @@ import Foundation
 import CoreData
 import CloudKit
 
-public let CloudStoreType: String = "CloudStoreType"
+public let CloudStoreType: String = "CloudData.CloudStore"
 
 public struct CloudStoreOptions {
 	static let containerIdentifierKey: String = "containerIdentifierKey"
@@ -46,7 +46,10 @@ public let CloudStoreErrorKey = "error"
 public let CloudStoreSubscriptionID = "autoUpdate"
 
 let CloudRecordProperty = "_CloudRecord"
-let CKRecordKey = "CKRecord"
+//let CKRecordKey = "CKRecord"
+//let CKRecordIDKey = "CKRecordID"
+let CKRecordKey = UnsafeRawPointer("CKRecord")
+let CKRecordIDKey = UnsafeRawPointer("CKRecordID")
 
 open class CloudStore: NSIncrementalStore {
 
@@ -68,11 +71,14 @@ open class CloudStore: NSIncrementalStore {
 			guard let model = persistentStoreCoordinator?.managedObjectModel else {throw CloudStoreError.invalidManagedObjectModel}
 			entities = model.entitiesByName
 			backingManagedObjectModel = backingObjectModel(source: model)
+			backingPersistentStoreCoordinator = NSPersistentStoreCoordinator(managedObjectModel: backingManagedObjectModel!)
 			try loadBackingStore()
 			
 			guard backingPersistentStore != nil else {throw CloudStoreError.unknown}
 			backingManagedObjectContext = NSManagedObjectContext(concurrencyType: .privateQueueConcurrencyType)
 			backingManagedObjectContext?.persistentStoreCoordinator = backingPersistentStoreCoordinator
+			
+			backingObjectHelper = BackingObjectHelper(store: self, managedObjectContext: backingManagedObjectContext!)
 			
 			let center = NotificationCenter.default
 			
@@ -152,16 +158,60 @@ open class CloudStore: NSIncrementalStore {
 				values = dic;
 			}
 		}
-		
-		return NSIncrementalStoreNode(objectID: objectID, withValues: values ?? [:], version: version)
+		if let values = values {
+			return NSIncrementalStoreNode(objectID: objectID, withValues: values ?? [:], version: version)
+		}
+		else {
+			throw NSError(domain: NSSQLiteErrorDomain, code: NSSQLiteError, userInfo: nil)
+		}
 	}
 	
 	open override func newValue(forRelationship relationship: NSRelationshipDescription, forObjectWith objectID: NSManagedObjectID, with context: NSManagedObjectContext?) throws -> Any {
+		var result: Any?
+		var error: NSError?
+		backingManagedObjectContext?.performAndWait {
+			guard let helper = self.backingObjectHelper else {return}
+			
+			if let context = context as? CloudManagedObjectContext, context.loadFromCache {
+				if let record = helper.record(objectID: objectID)?.cache?.cachedRecord {
+					result = relationship.managedReference(from: record, store: self)
+				}
+				else {
+					error = NSError(domain: NSSQLiteErrorDomain, code: NSSQLiteError, userInfo: nil)
+				}
+			}
+			else if let backingObject = helper.backingObject(objectID: objectID) {
+				if relationship.isToMany {
+					var set = Set<NSManagedObjectID>()
+					for object in (backingObject.value(forKey: relationship.name) as? Set<NSManagedObject>) ?? Set() {
+						guard let objectID = helper.objectID(backingObject: object) else {continue}
+						set.insert(objectID)
+					}
+					result = set;
+				}
+				else if let object = backingObject.value(forKey: relationship.name) as? NSManagedObject,
+					let objectID = helper.objectID(backingObject: object) {
+					result = objectID
+				}
+			}
+		}
+		if let error = error {
+			throw(error)
+		}
 		
+		if let result = result {
+			return result
+		}
+		else if relationship.isToMany {
+			return [NSManagedObjectID]()
+		}
+		else {
+			return NSNull()
+		}
 	}
 	
 	open override func newObjectID(for entity: NSEntityDescription, referenceObject data: Any) -> NSManagedObjectID {
-		return super.newObjectID(for: entity, referenceObject: "id \(data as! String)")
+		return super.newObjectID(for: entity, referenceObject: "id\(data as! String)")
 	}
 	
 	open override func referenceObject(for objectID: NSManagedObjectID) -> Any {
@@ -170,18 +220,33 @@ open class CloudStore: NSIncrementalStore {
 	
 	//MARK: - Private
 	
-	private var backingPersistentStoreCoordinator: NSPersistentStoreCoordinator?
+	var backingPersistentStoreCoordinator: NSPersistentStoreCoordinator?
 	private var backingManagedObjectModel: NSManagedObjectModel?
-	private var backingManagedObjectContext: NSManagedObjectContext?
-	private var autoPushTimer: Timer?
-	private var autoPullTimer: Timer?
+	var backingManagedObjectContext: NSManagedObjectContext?
 	private var accountStatus: CKAccountStatus = .couldNotDetermine
 	private var ubiquityIdentityToken: (NSObjectProtocol & NSCoding)?
 	private var needsInitialImport: Bool = false
 	private var container: CKContainer?
-	private var database: CKDatabase?
+	var database: CKDatabase?
 	private let operationQueue = CloudOperationQueue()
-	
+
+	private var autoPushTimer: Timer? {
+		didSet {
+			oldValue?.invalidate()
+			if let timer = autoPushTimer {
+				RunLoop.main.add(timer, forMode: .defaultRunLoopMode)
+			}
+		}
+	}
+	private var autoPullTimer: Timer? {
+		didSet {
+			oldValue?.invalidate()
+			if let timer = autoPullTimer {
+				RunLoop.main.add(timer, forMode: .defaultRunLoopMode)
+			}
+		}
+	}
+
 	private lazy var databaseScope: CloudStoreScope = {
 		if #available(iOS 10.0, *) {
 			guard let value = self.options?[CloudStoreOptions.databaseScopeKey] as? Int else {return .private}
@@ -192,7 +257,7 @@ open class CloudStore: NSIncrementalStore {
 		}
 	}()
 	
-	private lazy var recordZoneID: CKRecordZoneID? = {
+	lazy var recordZoneID: CKRecordZoneID? = {
 		guard let zone = (self.options?[CloudStoreOptions.recordZoneKey] as? String) ?? self.url?.deletingPathExtension().lastPathComponent else {return nil}
 		
 		let ownerName: String
@@ -208,7 +273,7 @@ open class CloudStore: NSIncrementalStore {
 
 	private lazy var containerIdentifier: String? = self.options?[CloudStoreOptions.containerIdentifierKey] as? String
 	
-	private lazy var mergePolicyType: NSMergePolicyType = {
+	lazy var mergePolicyType: NSMergePolicyType = {
 		let mergePolicyType = (self.options?[CloudStoreOptions.mergePolicyType] as? NSMergePolicyType) ?? .mergeByPropertyObjectTrumpMergePolicyType
 		assert(mergePolicyType != .errorMergePolicyType, "NSErrorMergePolicyType is not supported")
 		return mergePolicyType
@@ -227,7 +292,7 @@ open class CloudStore: NSIncrementalStore {
 			relationship.name = entity.name!
 			relationship.maxCount = 1
 			relationship.deleteRule = .cascadeDeleteRule
-			relationship.isOptional = false
+			relationship.isOptional = true
 			relationship.destinationEntity = backingModel.entitiesByName[entity.name!]
 			properties.append(relationship)
 			
@@ -262,21 +327,23 @@ open class CloudStore: NSIncrementalStore {
 		autoPullTimer = nil
 		accountStatus = .couldNotDetermine
 
-
 		self.ubiquityIdentityToken = FileManager.default.ubiquityIdentityToken
-		guard databaseScope == .public || ubiquityIdentityToken != nil else {throw CloudStoreError.unableToLoadBackingStore}
+//		guard databaseScope == .public || ubiquityIdentityToken != nil else {throw CloudStoreError.unableToLoadBackingStore}
 		let identifier: String
-
+		let isLocal: Bool
 		if #available(iOS 10.0, *) {
 			if let token = ubiquityIdentityToken, databaseScope == .private {
 				identifier = UUID(ubiquityIdentityToken: token).uuidString
+				isLocal = false
 			}
 			else {
 				identifier = "local"
+				isLocal = true
 			}
 		}
 		else {
 			identifier = "local"
+			isLocal = true
 		}
 		
 		guard let storeURL = url?.appendingPathComponent("\(identifier)/\(containerIdentifier ?? "store")/\(recordZoneID.zoneName).sqlite") else {throw CloudStoreError.unableToLoadBackingStore}
@@ -387,6 +454,7 @@ open class CloudStore: NSIncrementalStore {
 			fetchOperation.fetchRecordZonesCompletionBlock = { (zones, error) in
 				if let zone = zones?[recordZoneID] {
 					strongSelf.recordZone = zone
+					finish()
 				}
 				else if let zoneError = (error as? CKError)?.partialErrorsByItemID?[recordZoneID] as? CKError,
 					case CKError.zoneNotFound = zoneError,
@@ -423,10 +491,6 @@ open class CloudStore: NSIncrementalStore {
 			
 			database.add(fetchOperation)
 		}
-	}
-	
-	@objc private func pull() {
-		
 	}
 	
 	private func loadSubscription() {
@@ -520,16 +584,82 @@ open class CloudStore: NSIncrementalStore {
 	}
 	
 	//MARK: - Push/Pull
+	
+	lazy var lock = NSLock()
+	lazy var isPushing = false
+	lazy var isPulling = false
 
 	@objc private func push() {
-		
+		if iCloudIsAvailableForWriting {
+			do {
+				lock.lock(); defer { lock.unlock() }
+				guard !isPushing else {return}
+				isPushing = true
+			}
+			
+			let operation = CloudPushOperation(store: self) { [weak self] (error, conflicts) in
+				guard let strongSelf = self else {return}
+				do {
+					strongSelf.lock.lock(); defer { strongSelf.lock.unlock() }
+					strongSelf.isPushing = false
+				}
+				if (conflicts?.count ?? 0) > 0 {
+					strongSelf.pull()
+				}
+			}
+			self.operationQueue.addOperation(operation)
+		}
 	}
-	
+
+	@objc private func pull() {
+		if iCloudIsAvailableForReading {
+			do {
+				lock.lock(); defer { lock.unlock() }
+				guard !isPulling else {return}
+				isPulling = true
+			}
+			
+			if needsInitialImport {
+				NotificationCenter.default.post(name: .CloudStoreDidStartCloudImport, object: self)
+			}
+			
+			let operation = CloudPullOperation(store: self) { [weak self] (operation, moreComing, error) in
+				guard let strongSelf = self else {return}
+				
+				if moreComing {
+					strongSelf.operationQueue.addOperation(operation)
+				}
+				else {
+					if strongSelf.needsInitialImport {
+						if let error = error {
+							NotificationCenter.default.post(name: .CloudStoreDidFailCloudImport, object: self, userInfo: [CloudStoreErrorKey: error])
+						}
+						else {
+							NotificationCenter.default.post(name: .CloudStoreDidFinishCloudImport, object: self)
+							strongSelf.needsInitialImport = false
+						}
+					}
+					
+					do {
+						strongSelf.lock.lock(); defer { strongSelf.lock.unlock() }
+						strongSelf.isPulling = false
+					}
+					strongSelf.push()
+				}
+			}
+			
+			operationQueue.addOperation(operation)
+		}
+	}
+
 	//MARK: - Save/Fetch requests
 	
 	private func execute(_ request: NSSaveChangesRequest, with context: NSManagedObjectContext?) throws -> Any {
 		guard let helper = self.backingObjectHelper else {return []}
-		var objects = request.insertedObjects?.union(request.deletedObjects ?? Set())
+		guard let recordZoneID = self.recordZoneID else {return []}
+		var objects = (request.insertedObjects ?? Set()).union(request.updatedObjects ?? Set())
+		
+		var err: Error?
 		
 		backingManagedObjectContext?.performAndWait {
 			func backingObjectFrom(_ object: NSManagedObject) -> NSManagedObject? {
@@ -548,7 +678,15 @@ open class CloudStore: NSIncrementalStore {
 			}
 			
 			for object in objects ?? Set() {
-				guard let record = helper.record(objectID: object.objectID) else {continue}
+				let record = helper.record(objectID: object.objectID) ?? {
+					let record = NSEntityDescription.insertNewObject(forEntityName: "CloudRecord", into: self.backingManagedObjectContext!) as! CloudRecord
+					record.recordType = object.entity.name
+					record.cache = NSEntityDescription.insertNewObject(forEntityName: "CloudRecordCache", into: self.backingManagedObjectContext!) as? CloudRecordCache
+					
+					record.cache?.cachedRecord = CKRecord(recordType: record.recordType!, zoneID: recordZoneID)
+					record.recordID = record.cache?.cachedRecord?.recordID.recordName
+					return record
+				}()
 				guard let recordType = record.recordType else {continue}
 				let backingObject = record.value(forKey: recordType) as? NSManagedObject ?? {
 					let backingObject = NSEntityDescription.insertNewObject(forEntityName: object.entity.name!, into: self.backingManagedObjectContext!)
@@ -583,9 +721,11 @@ open class CloudStore: NSIncrementalStore {
 
 				if let ckRecord = objc_getAssociatedObject(object, CKRecordKey) as? CKRecord {
 					record.cache?.cachedRecord = ckRecord
-					if record.version == record.cache?.version {
-						record.cache?.version += 1
-					}
+					record.cache?.version = record.version + 1
+//					if record.version == record.cache?.version {
+//						record.cache?.version += 1
+//					}
+					objc_setAssociatedObject(object, CKRecordKey, nil, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
 				}
 				record.version += 1
 			}
@@ -597,15 +737,24 @@ open class CloudStore: NSIncrementalStore {
 					self.backingManagedObjectContext?.delete(backingObject)
 				}
 				
-				if (objc_getAssociatedObject(object, CloudRecordProperty) as? CKRecord) != nil {
+				if (objc_getAssociatedObject(object, CKRecordIDKey) as? CKRecord) != nil {
 					self.backingManagedObjectContext?.delete(record)
 				}
 				record.version = 0
 			}
 			
 			if self.backingManagedObjectContext?.hasChanges == true {
-				try? self.backingManagedObjectContext?.save()
+				do {
+					try self.backingManagedObjectContext?.save()
+				}
+				catch {
+					err = error
+				}
+				
 			}
+		}
+		if let error = err {
+			throw error
 		}
 		return []
 	}
