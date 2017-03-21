@@ -26,13 +26,19 @@ class CloudOperation: Operation {
 		case CKError.networkUnavailable?,
 		     CKError.networkFailure?,
 		     CKError.serviceUnavailable?,
-		     CKError.requestRateLimited?,
 		     CKError.notAuthenticated?:
 			if _retryCounter < CloudOperationRetryLimit {
 				_retryCounter += 1
 				let retryAfter = (error as? CKError)?.retryAfterSeconds ?? 3.0
 				fireDate = Date(timeIntervalSinceNow: retryAfter)
-				print("Error: \(error!). Retry after \(retryAfter)")
+				print("CloudDataError: \(error!). Retry after \(retryAfter)")
+			}
+		case CKError.requestRateLimited?:
+			if _retryCounter < CloudOperationRetryLimit {
+				_retryCounter += 1
+				let retryAfter = (error as? CKError)?.retryAfterSeconds ?? 30
+				fireDate = Date(timeIntervalSinceNow: retryAfter)
+				print("CloudDataError: \(error!). Retry after \(retryAfter)")
 			}
 		default:
 			break

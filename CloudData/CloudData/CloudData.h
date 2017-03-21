@@ -16,4 +16,4 @@ FOUNDATION_EXPORT const unsigned char CloudDataVersionString[];
 
 // In this header, you should import all the public headers of your framework using statements like #import <CloudData/PublicHeader.h>
 
-#import <CloudData/NSData+md5.h>
+#import <CloudData/NSData+CloudData.h>

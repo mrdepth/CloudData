@@ -42,8 +42,13 @@ extension NSAttributeDescription {
 		return value
 	}
 	
-	func reverseTransformedValue(_ value: Any?) -> Any? {
+	func reverseTransformedValue(_ value: Any?, deflated: Bool) -> Any? {
+		var value = value
 		guard !(value is NSNull) else {return nil}
+		if let data = value as? NSData, deflated {
+			value = data.inflate() ?? data
+		}
+		
 		switch attributeType {
 		case .undefinedAttributeType, .objectIDAttributeType:
 			assert(false, "Invalid attribute type \(attributeType)")
@@ -74,8 +79,8 @@ extension NSAttributeDescription {
 		return transformedValue(backingObject.value(forKey: self.name)) as? CKRecordValue
 	}
 	
-	func managedValue(from record: CKRecord) -> Any? {
-		return reverseTransformedValue(record[name])
+	func managedValue(from record: CKRecord, deflated: Bool) -> Any? {
+		return reverseTransformedValue(record[name], deflated: deflated)
 	}
 
 }
@@ -83,7 +88,8 @@ extension NSAttributeDescription {
 extension NSRelationshipDescription {
 	
 	@nonobjc var shouldSerialize: Bool {
-		if let inverseRelationship = inverseRelationship {
+		return true
+		/*if let inverseRelationship = inverseRelationship {
 			if inverseRelationship.deleteRule == .cascadeDeleteRule {
 				return true
 			}
@@ -111,7 +117,7 @@ extension NSRelationshipDescription {
 		}
 		else {
 			return true
-		}
+		}*/
 	}
 	
 	@nonobjc func ckReference(from backingObject: NSManagedObject, recordZoneID: CKRecordZoneID) -> Any? {
@@ -123,14 +129,27 @@ extension NSRelationshipDescription {
 			let value = backingObject.value(forKey: self.name)
 			
 			if self.isToMany {
-				guard let value = value as? [NSManagedObject] else {return}
-				var references = [CKReference]()
-				for object in value {
-					guard let record = object.value(forKey: CloudRecordProperty) as? CloudRecord else {continue}
-					let reference = CKReference(recordID: CKRecordID(recordName: record.recordID!, zoneID: recordZoneID), action: action)
-					references.append(reference)
+				if self.isOrdered {
+					guard let value = value as? NSOrderedSet else {return}
+					var references = [CKReference]()
+					for object in value {
+						guard let object = object as? NSManagedObject else {continue}
+						guard let record = object.value(forKey: CloudRecordProperty) as? CloudRecord else {continue}
+						let reference = CKReference(recordID: CKRecordID(recordName: record.recordID!, zoneID: recordZoneID), action: action)
+						references.append(reference)
+					}
+					result = references
 				}
-				result = references
+				else {
+					guard let value = value as? Set<NSManagedObject> else {return}
+					var references = Set<CKReference>()
+					for object in value {
+						guard let record = object.value(forKey: CloudRecordProperty) as? CloudRecord else {continue}
+						let reference = CKReference(recordID: CKRecordID(recordName: record.recordID!, zoneID: recordZoneID), action: action)
+						references.insert(reference)
+					}
+					result = references.sorted(by: {$0.0.recordID.recordName < $0.1.recordID.recordName})
+				}
 			}
 			else if let object = value as? NSManagedObject {
 				guard let record = object.value(forKey: CloudRecordProperty) as? CloudRecord else {return}
@@ -208,10 +227,10 @@ extension CKRecord {
 	func nodeValues(store: CloudStore, includeToManyRelationships: Bool) -> [String: Any] {
 		guard let entity = store.entities?[recordType] else {return [:]}
 		var values = [String: Any]()
-		
+		let deflated = store.binaryDataCompressionLevel != .none
 		for property in entity.properties {
 			if let attribute = property as? NSAttributeDescription {
-				if let value = attribute.managedValue(from: self) {
+				if let value = attribute.managedValue(from: self, deflated: deflated) {
 					values[attribute.name] = value
 				}
 			}
@@ -225,27 +244,5 @@ extension CKRecord {
 		}
 		
 		return values
-	}
-}
-
-protocol SetCollection {
-	func add(_ object: Any)
-}
-
-extension NSMutableSet: SetCollection {
-	
-}
-
-extension NSMutableOrderedSet: SetCollection {
-}
-
-struct AnySetCollection<U: SetCollection>: SetCollection {
-	let base: U
-	init (base: U) {
-		self.base = base
-	}
-	
-	func add(_ object: Any) {
-		base.add(object)
 	}
 }

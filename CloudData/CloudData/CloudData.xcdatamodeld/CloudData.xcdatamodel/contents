@@ -10,12 +10,12 @@
         <attribute name="recordID" attributeType="String" indexed="YES" syncable="YES"/>
         <attribute name="recordType" attributeType="String" syncable="YES"/>
         <attribute name="version" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES" syncable="YES"/>
-        <relationship name="cache" optional="YES" maxCount="1" deletionRule="No Action" destinationEntity="CloudRecordCache" syncable="YES"/>
+        <relationship name="cache" optional="YES" maxCount="1" deletionRule="Cascade" destinationEntity="CloudRecordCache" inverseName="record" inverseEntity="CloudRecordCache" syncable="YES"/>
     </entity>
     <entity name="CloudRecordCache" representedClassName=".CloudRecordCache" syncable="YES" codeGenerationType="class">
         <attribute name="cachedRecord" attributeType="Transformable" customClassName="CloudKit.CKRecord" syncable="YES"/>
         <attribute name="version" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES" syncable="YES"/>
-        <relationship name="record" optional="YES" maxCount="1" deletionRule="No Action" destinationEntity="CloudRecord" syncable="YES"/>
+        <relationship name="record" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CloudRecord" inverseName="cache" inverseEntity="CloudRecord" syncable="YES"/>
     </entity>
     <elements>
         <element name="CloudMetadata" positionX="-63" positionY="-18" width="128" height="90"/>

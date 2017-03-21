@@ -17,6 +17,7 @@ public struct CloudStoreOptions {
 	public static let databaseScopeKey: String = "databaseScopeKey"
 	public static let recordZoneKey: String = "recordZoneKey"
 	public static let mergePolicyType: String = "mergePolicyType"
+	public static let binaryDataCompressionLevel: String = "binaryDataCompressionLevel"
 }
 
 public extension Notification.Name {
@@ -42,6 +43,13 @@ public enum CloudStoreScope: Int {
 	case shared
 }
 
+//public enum BinaryDataCompressionLevel: Int {
+//	case none
+//	case `default`
+//	case speed
+//	case best
+//}
+
 public let CloudStoreErrorKey = "error"
 public let CloudStoreSubscriptionID = "autoUpdate"
 
@@ -50,6 +58,7 @@ let CloudRecordProperty = "_CloudRecord"
 //let CKRecordIDKey = "CKRecordID"
 let CKRecordKey = UnsafeRawPointer("CKRecord")
 let CKRecordIDKey = UnsafeRawPointer("CKRecordID")
+let AutoPushInterval = 15 as TimeInterval
 
 open class CloudStore: NSIncrementalStore {
 
@@ -269,6 +278,10 @@ open class CloudStore: NSIncrementalStore {
 		}
 	}()
 	
+	lazy var binaryDataCompressionLevel: BinaryDataCompressionLevel = {
+		return self.options?[CloudStoreOptions.binaryDataCompressionLevel] as? BinaryDataCompressionLevel ?? .none
+	}()
+	
 	lazy var recordZoneID: CKRecordZoneID? = {
 		guard let zone = (self.options?[CloudStoreOptions.recordZoneKey] as? String) ?? self.url?.deletingPathExtension().lastPathComponent else {return nil}
 		
@@ -348,20 +361,20 @@ open class CloudStore: NSIncrementalStore {
 		self.ubiquityIdentityToken = FileManager.default.ubiquityIdentityToken
 //		guard databaseScope == .public || ubiquityIdentityToken != nil else {throw CloudStoreError.unableToLoadBackingStore}
 		let identifier: String
-		let isLocal: Bool
+//		let isLocal: Bool
 		if #available(iOS 10.0, *) {
 			if let token = ubiquityIdentityToken, databaseScope == .private {
 				identifier = UUID(ubiquityIdentityToken: token).uuidString
-				isLocal = false
+//				isLocal = false
 			}
 			else {
 				identifier = "local"
-				isLocal = true
+//				isLocal = true
 			}
 		}
 		else {
 			identifier = "local"
-			isLocal = true
+//			isLocal = true
 		}
 		
 		guard let storeURL = url?.appendingPathComponent("\(identifier)/\(containerIdentifier ?? "store")/\(recordZoneID.zoneName).sqlite") else {throw CloudStoreError.unableToLoadBackingStore}
@@ -454,7 +467,7 @@ open class CloudStore: NSIncrementalStore {
 				self.pull()
 				self.loadSubscription()
 				if self.iCloudIsAvailableForWriting {
-					self.autoPushTimer = Timer(timeInterval: 10, target: self, selector: #selector(push), userInfo: nil, repeats: true)
+					self.autoPushTimer = Timer(timeInterval: AutoPushInterval, target: self, selector: #selector(push), userInfo: nil, repeats: true)
 				}
 				NotificationCenter.default.post(name: .CloudStoreDidInitializeCloudAccount, object: self, userInfo:nil)
 			}
@@ -695,7 +708,7 @@ open class CloudStore: NSIncrementalStore {
 				record.setValue(bo, forKey: recordType)
 			}
 			
-			for object in objects ?? Set() {
+			for object in objects {
 				let record = helper.record(objectID: object.objectID) ?? {
 					let record = NSEntityDescription.insertNewObject(forEntityName: "CloudRecord", into: self.backingManagedObjectContext!) as! CloudRecord
 					record.recordType = object.entity.name

@@ -28,7 +28,7 @@ class CloudPullOperation: CloudOperation {
 
 		self.workManagedObjectContext = CloudManagedObjectContext(concurrencyType: .privateQueueConcurrencyType)
 		self.workManagedObjectContext.persistentStoreCoordinator = store.persistentStoreCoordinator
-		self.workManagedObjectContext.mergePolicy = store.mergePolicyType
+		self.workManagedObjectContext.mergePolicy = NSMergePolicy(merge: store.mergePolicyType)
 		self.backingObjectHelper = BackingObjectHelper(store: store, managedObjectContext: backingManagedObjectContext)
 		self.entities = workManagedObjectContext.persistentStoreCoordinator?.managedObjectModel.entitiesByName
 		super.init()
@@ -107,6 +107,8 @@ class CloudPullOperation: CloudOperation {
 	}
 	
 	func save(record: CKRecord, completionHandler: @escaping () -> Void) {
+		let deflated = store.binaryDataCompressionLevel != .none
+
 		workManagedObjectContext.perform {
 			guard let objectID = self.backingObjectHelper.objectID(recordID: record.recordID.recordName, entityName: record.recordType) else {
 				completionHandler()
@@ -131,15 +133,15 @@ class CloudPullOperation: CloudOperation {
 			}
 			
 			let object = get(objectID: objectID)
-			var p = CKRecordKey
 			objc_setAssociatedObject(object, CKRecordKey, record, .OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 
 			for property in object.entity.properties {
 				if let attribute = property as? NSAttributeDescription {
-					object.setValue(attribute.managedValue(from: record), forKey: attribute.name)
+					var value = attribute.managedValue(from: record, deflated: deflated)
+					object.setValue(value, forKey: attribute.name)
 				}
 				else if let relationship = property as? NSRelationshipDescription, relationship.shouldSerialize {
-					var value: Any = record[relationship.name]
+					let value = record[relationship.name]
 					
 					if relationship.isToMany {
 						let references = value as? [CKReference] ?? {
