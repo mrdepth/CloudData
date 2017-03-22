@@ -43,24 +43,19 @@ public enum CloudStoreScope: Int {
 	case shared
 }
 
-//public enum BinaryDataCompressionLevel: Int {
-//	case none
-//	case `default`
-//	case speed
-//	case best
-//}
-
 public let CloudStoreErrorKey = "error"
 public let CloudStoreSubscriptionID = "autoUpdate"
 
 let CloudRecordProperty = "_CloudRecord"
-//let CKRecordKey = "CKRecord"
-//let CKRecordIDKey = "CKRecordID"
 let CKRecordKey = UnsafeRawPointer("CKRecord")
 let CKRecordIDKey = UnsafeRawPointer("CKRecordID")
 let AutoPushInterval = 15 as TimeInterval
 
 open class CloudStore: NSIncrementalStore {
+	
+	public class func handleRemoteNotification(userInfo: [AnyHashable: Any]) {
+		NotificationCenter.default.post(name: .CloudStoreDidReceiveRemoteNotification, object: nil, userInfo: userInfo)
+	}
 
 	var entities: [String: NSEntityDescription]?
 	var backingObjectHelper: BackingObjectHelper?
@@ -359,25 +354,27 @@ open class CloudStore: NSIncrementalStore {
 		accountStatus = .couldNotDetermine
 
 		self.ubiquityIdentityToken = FileManager.default.ubiquityIdentityToken
-//		guard databaseScope == .public || ubiquityIdentityToken != nil else {throw CloudStoreError.unableToLoadBackingStore}
 		let identifier: String
-//		let isLocal: Bool
 		if #available(iOS 10.0, *) {
 			if let token = ubiquityIdentityToken, databaseScope == .private {
 				identifier = UUID(ubiquityIdentityToken: token).uuidString
-//				isLocal = false
 			}
 			else {
 				identifier = "local"
-//				isLocal = true
 			}
 		}
 		else {
 			identifier = "local"
-//			isLocal = true
 		}
 		
-		guard let storeURL = url?.appendingPathComponent("\(identifier)/\(containerIdentifier ?? "store")/\(recordZoneID.zoneName).sqlite") else {throw CloudStoreError.unableToLoadBackingStore}
+		if let containerIdentifier = containerIdentifier {
+			self.container = CKContainer(identifier: containerIdentifier)
+		}
+		else {
+			self.container = CKContainer.default()
+		}
+		
+		guard let storeURL = url?.appendingPathComponent("\(identifier)/\(self.container?.containerIdentifier ?? "store")/\(recordZoneID.zoneName).sqlite") else {throw CloudStoreError.unableToLoadBackingStore}
 		try? FileManager.default.createDirectory(at: storeURL.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: nil)
 		
 		backingPersistentStore = try! backingPersistentStoreCoordinator.addPersistentStore(ofType: NSSQLiteStoreType, configurationName: configurationName, at: storeURL, options: nil)
@@ -408,12 +405,6 @@ open class CloudStore: NSIncrementalStore {
 			self.metadata = m
 		}
 		
-		if let containerIdentifier = containerIdentifier {
-			self.container = CKContainer(identifier: containerIdentifier)
-		}
-		else {
-			self.container = CKContainer.default()
-		}
 		try loadDatabase()
 	}
 	
@@ -586,7 +577,7 @@ open class CloudStore: NSIncrementalStore {
 
 	func didReceiveRemoteNotification(_ note: Notification) {
 		guard let info = note.userInfo else {return}
-		guard let containerIdentifier = containerIdentifier else {return}
+		guard let containerIdentifier = container?.containerIdentifier else {return}
 		guard let recordZoneID = recordZoneID else {return}
 		
 		let notification = CKRecordZoneNotification(fromRemoteNotificationDictionary: info)
