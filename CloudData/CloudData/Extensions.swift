@@ -138,7 +138,7 @@ extension NSRelationshipDescription {
 						let reference = CKReference(recordID: CKRecordID(recordName: record.recordID!, zoneID: recordZoneID), action: action)
 						references.append(reference)
 					}
-					result = references
+					result = references.count > 0 ? references : NSNull()
 				}
 				else {
 					guard let value = value as? Set<NSManagedObject> else {return}
@@ -148,7 +148,8 @@ extension NSRelationshipDescription {
 						let reference = CKReference(recordID: CKRecordID(recordName: record.recordID!, zoneID: recordZoneID), action: action)
 						references.insert(reference)
 					}
-					result = references.sorted(by: {$0.0.recordID.recordName < $0.1.recordID.recordName})
+					
+					result = references.count > 0 ? references.sorted(by: {$0.0.recordID.recordName < $0.1.recordID.recordName}) : NSNull()
 				}
 			}
 			else if let object = value as? NSManagedObject {
