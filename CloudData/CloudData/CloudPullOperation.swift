@@ -137,7 +137,7 @@ class CloudPullOperation: CloudOperation {
 
 			for property in object.entity.properties {
 				if let attribute = property as? NSAttributeDescription {
-					var value = attribute.managedValue(from: record, deflated: deflated)
+					let value = attribute.managedValue(from: record, deflated: deflated)
 					object.setValue(value, forKey: attribute.name)
 				}
 				else if let relationship = property as? NSRelationshipDescription, relationship.shouldSerialize {
