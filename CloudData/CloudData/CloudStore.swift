@@ -806,6 +806,9 @@ open class CloudStore: NSIncrementalStore {
 			do {
 				let backingRequest = request.copy() as! NSFetchRequest<NSFetchRequestResult>
 				backingRequest.entity = backingManagedObjectModel.entitiesByName[request.entityName ?? request.entity!.name!]
+				if let predicate = backingRequest.predicate {
+					backingRequest.predicate = self.backingObjectHelper?.backingPredicate(from: predicate)
+				}
 				
 				if backingRequest.resultType == .managedObjectIDResultType {
 					backingRequest.resultType = .managedObjectResultType
