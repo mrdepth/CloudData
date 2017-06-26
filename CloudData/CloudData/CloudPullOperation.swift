@@ -13,14 +13,14 @@ import CoreData
 
 class CloudPullOperation: CloudOperation {
 	private let store: CloudStore
-	private let completionHandler: (CloudPullOperation, Bool, Error?) -> Void
+	private let completionHandler: (CloudPullOperation, Error?) -> Void
 	private let backingManagedObjectContext: NSManagedObjectContext
 	private let workManagedObjectContext: CloudManagedObjectContext
 	private let backingObjectHelper: BackingObjectHelper
 	private var cache: [NSManagedObjectID: NSManagedObject]?
 	private let entities: [String: NSEntityDescription]?
 	
-	init(store: CloudStore, completionHandler: @escaping (CloudPullOperation, Bool, Error?) -> Void) {
+	init(store: CloudStore, completionHandler: @escaping (CloudPullOperation, Error?) -> Void) {
 		self.store = store
 		self.completionHandler = completionHandler
 		self.backingManagedObjectContext = NSManagedObjectContext(concurrencyType: .privateQueueConcurrencyType)
@@ -31,78 +31,91 @@ class CloudPullOperation: CloudOperation {
 		self.workManagedObjectContext.mergePolicy = NSMergePolicy(merge: store.mergePolicyType)
 		self.backingObjectHelper = BackingObjectHelper(store: store, managedObjectContext: backingManagedObjectContext)
 		self.entities = workManagedObjectContext.persistentStoreCoordinator?.managedObjectModel.entitiesByName
+		cache = [:]
 		super.init()
 	}
 
 	override func main() {
-		cache = [:]
 		backingManagedObjectContext.perform {
 			let request = NSFetchRequest<CloudMetadata>(entityName: "CloudMetadata")
 			guard let metadata = (try? self.backingManagedObjectContext.fetch(request))?.first,
 				let recordZoneID = self.store.recordZoneID,
 				let database = self.store.database else {
 				self.finish()
-				self.completionHandler(self, false, nil)
+				self.completionHandler(self, nil)
 				return
 			}
 			
-			var fetchOperation: CKFetchRecordChangesOperation? = CKFetchRecordChangesOperation(recordZoneID: recordZoneID, previousServerChangeToken: metadata.serverChangeToken)
 			
-			let dispatchGroup = DispatchGroup()
-			
-			fetchOperation?.recordChangedBlock = { [weak self] record in
-				guard let strongSelf = self else {return}
-				if strongSelf.entities?[record.recordType] != nil {
+			func fetch() {
+				var fetchOperation: CKFetchRecordChangesOperation? = CKFetchRecordChangesOperation(recordZoneID: recordZoneID, previousServerChangeToken: metadata.serverChangeToken)
+				
+				let dispatchGroup = DispatchGroup()
+				
+				fetchOperation?.recordChangedBlock = { [weak self] record in
+					guard let strongSelf = self else {return}
+					if strongSelf.entities?[record.recordType] != nil {
+						dispatchGroup.enter()
+						strongSelf.save(record: record) {
+							dispatchGroup.leave()
+						}
+					}
+				}
+				
+				fetchOperation?.recordWithIDWasDeletedBlock = { [weak self] recordID in
+					guard let strongSelf = self else {return}
 					dispatchGroup.enter()
-					strongSelf.save(record: record) {
+					strongSelf.delete(recordID: recordID) {
 						dispatchGroup.leave()
 					}
 				}
-			}
-			
-			fetchOperation?.recordWithIDWasDeletedBlock = { [weak self] recordID in
-				guard let strongSelf = self else {return}
-				dispatchGroup.enter()
-				strongSelf.delete(recordID: recordID) {
-					dispatchGroup.leave()
-				}
-			}
-			
-			fetchOperation?.fetchRecordChangesCompletionBlock = { [weak self] (serverChangeToken, clientChangeTokenData, operationError) in
-				guard let strongSelf = self else {return}
 				
-				if let error = operationError {
-					self?.finish(error: error)
-					self?.completionHandler(strongSelf, fetchOperation!.moreComing, error)
-					fetchOperation = nil
-				}
-				else {
-					dispatchGroup.notify(queue: .main) {
+				fetchOperation?.fetchRecordChangesCompletionBlock = { [weak self] (serverChangeToken, clientChangeTokenData, operationError) in
+					guard let strongSelf = self else {return}
+					if fetchOperation?.moreComing == true {
 						strongSelf.backingManagedObjectContext.perform {
 							metadata.serverChangeToken = serverChangeToken
-							if strongSelf.backingManagedObjectContext.hasChanges {
-								try? strongSelf.backingManagedObjectContext.save()
-							}
-							strongSelf.workManagedObjectContext.perform {
-								do {
-									if strongSelf.workManagedObjectContext.hasChanges {
-										try strongSelf.workManagedObjectContext.save()
+							fetch()
+						}
+					}
+					else {
+						if let error = operationError {
+							self?.finish(error: error)
+							self?.completionHandler(strongSelf, error)
+							fetchOperation = nil
+						}
+						else {
+							dispatchGroup.notify(queue: .main) {
+								strongSelf.backingManagedObjectContext.perform {
+									metadata.serverChangeToken = serverChangeToken
+									if strongSelf.backingManagedObjectContext.hasChanges {
+										try? strongSelf.backingManagedObjectContext.save()
 									}
-									strongSelf.finish()
-									strongSelf.completionHandler(strongSelf, fetchOperation!.moreComing, nil)
+									strongSelf.workManagedObjectContext.perform {
+										do {
+											if strongSelf.workManagedObjectContext.hasChanges {
+												try strongSelf.workManagedObjectContext.save()
+											}
+											strongSelf.finish()
+											strongSelf.completionHandler(strongSelf, nil)
+										}
+										catch {
+											strongSelf.finish(error: error)
+											strongSelf.completionHandler(strongSelf, error)
+										}
+										fetchOperation = nil
+									}
 								}
-								catch {
-									strongSelf.finish(error: error)
-									strongSelf.completionHandler(strongSelf, fetchOperation!.moreComing, error)
-								}
-								fetchOperation = nil
 							}
 						}
 					}
 				}
+				
+				database.add(fetchOperation!)
 			}
 			
-			database.add(fetchOperation!)
+			fetch()
+
 		}
 	}
 	

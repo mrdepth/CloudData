@@ -645,29 +645,24 @@ open class CloudStore: NSIncrementalStore {
 				NotificationCenter.default.post(name: .CloudStoreDidStartCloudImport, object: self)
 			}
 			
-			let operation = CloudPullOperation(store: self) { [weak self] (operation, moreComing, error) in
+			let operation = CloudPullOperation(store: self) { [weak self] (operation, error) in
 				guard let strongSelf = self else {return}
 				
-				if moreComing {
-					strongSelf.operationQueue.addOperation(operation)
-				}
-				else {
-					if strongSelf.needsInitialImport {
-						if let error = error {
-							NotificationCenter.default.post(name: .CloudStoreDidFailCloudImport, object: self, userInfo: [CloudStoreErrorKey: error])
-						}
-						else {
-							NotificationCenter.default.post(name: .CloudStoreDidFinishCloudImport, object: self)
-							strongSelf.needsInitialImport = false
-						}
+				if strongSelf.needsInitialImport {
+					if let error = error {
+						NotificationCenter.default.post(name: .CloudStoreDidFailCloudImport, object: self, userInfo: [CloudStoreErrorKey: error])
 					}
-					
-					do {
-						strongSelf.lock.lock(); defer { strongSelf.lock.unlock() }
-						strongSelf.isPulling = false
+					else {
+						NotificationCenter.default.post(name: .CloudStoreDidFinishCloudImport, object: self)
+						strongSelf.needsInitialImport = false
 					}
-					strongSelf.push()
 				}
+				
+				do {
+					strongSelf.lock.lock(); defer { strongSelf.lock.unlock() }
+					strongSelf.isPulling = false
+				}
+				strongSelf.push()
 			}
 			
 			operationQueue.addOperation(operation)
