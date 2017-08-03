@@ -377,7 +377,7 @@ open class CloudStore: NSIncrementalStore {
 		guard let storeURL = url?.appendingPathComponent("\(identifier)/\(self.container?.containerIdentifier ?? "store")/\(recordZoneID.zoneName).sqlite") else {throw CloudStoreError.unableToLoadBackingStore}
 		try? FileManager.default.createDirectory(at: storeURL.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: nil)
 		
-		backingPersistentStore = try! backingPersistentStoreCoordinator.addPersistentStore(ofType: NSSQLiteStoreType, configurationName: configurationName, at: storeURL, options: nil)
+		backingPersistentStore = try backingPersistentStoreCoordinator.addPersistentStore(ofType: NSSQLiteStoreType, configurationName: configurationName, at: storeURL, options: nil)
 		
 		let context = NSManagedObjectContext(concurrencyType: .privateQueueConcurrencyType)
 		context.persistentStoreCoordinator = backingPersistentStoreCoordinator
