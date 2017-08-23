@@ -46,7 +46,7 @@ const uInt chunkSize = 1024 * 4 * sizeof(Bytef);
 	strm.opaque = Z_NULL;
 	
 	
-	if (deflateInit(&strm, (int) level) != Z_OK) {
+	if (deflateInit(&strm, (int) l) != Z_OK) {
 		return nil;
 	}
 	
