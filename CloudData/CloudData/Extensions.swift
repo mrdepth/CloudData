@@ -62,7 +62,9 @@ extension NSAttributeDescription {
 			return value ?? self.defaultValue
 		case .stringAttributeType,
 		     .dateAttributeType,
-		     .binaryDataAttributeType:
+		     .binaryDataAttributeType,
+		     .UUIDAttributeType,
+		     .URIAttributeType:
 			return value
 		case .transformableAttributeType:
 			if let valueTransformerName = valueTransformerName {
@@ -149,7 +151,7 @@ extension NSRelationshipDescription {
 						references.insert(reference)
 					}
 					
-					result = references.count > 0 ? references.sorted(by: {$0.0.recordID.recordName < $0.1.recordID.recordName}) : NSNull()
+					result = references.count > 0 ? references.sorted(by: {$0.recordID.recordName < $1.recordID.recordName}) : NSNull()
 				}
 			}
 			else if let object = value as? NSManagedObject {

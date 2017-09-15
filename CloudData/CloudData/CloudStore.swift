@@ -559,7 +559,7 @@ open class CloudStore: NSIncrementalStore {
 	
 	//MARK: - Notification handlers
 	
-	func managedObjectContextDidSave(_ note: Notification) {
+	@objc func managedObjectContextDidSave(_ note: Notification) {
 		guard let context = note.object as? NSManagedObjectContext else {return}
 		guard context != backingManagedObjectContext && context.persistentStoreCoordinator == backingPersistentStoreCoordinator else {return}
 		backingManagedObjectContext?.perform {
@@ -567,15 +567,15 @@ open class CloudStore: NSIncrementalStore {
 		}
 	}
 
-	func ubiquityIdentityDidChange(_ note: Notification) {
+	@objc func ubiquityIdentityDidChange(_ note: Notification) {
 		guard let token = FileManager.default.ubiquityIdentityToken else {return}
-		if token.isEqual(ubiquityIdentityToken), let store = backingPersistentStore {
+		if !token.isEqual(ubiquityIdentityToken), let store = backingPersistentStore {
 			try? backingPersistentStoreCoordinator?.remove(store)
 			try? loadBackingStore()
 		}
 	}
 
-	func didReceiveRemoteNotification(_ note: Notification) {
+	@objc func didReceiveRemoteNotification(_ note: Notification) {
 		guard let info = note.userInfo else {return}
 		guard let containerIdentifier = container?.containerIdentifier else {return}
 		guard let recordZoneID = recordZoneID else {return}
@@ -586,7 +586,7 @@ open class CloudStore: NSIncrementalStore {
 		perform(#selector(pull), with: nil, afterDelay: 1)
 	}
 
-	func didBecomeActive(_ note: Notification) {
+	@objc func didBecomeActive(_ note: Notification) {
 		operationQueue.isSuspended = false
 		NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(pull), object: nil)
 		perform(#selector(pull), with: nil, afterDelay: 3)
@@ -598,7 +598,7 @@ open class CloudStore: NSIncrementalStore {
 		}
 	}
 
-	func willResignActive(_ note: Notification) {
+	@objc func willResignActive(_ note: Notification) {
 		operationQueue.isSuspended = true
 		NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(pull), object: nil)
 		autoPushTimer?.invalidate()
