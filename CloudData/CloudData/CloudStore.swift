@@ -71,6 +71,7 @@ open class CloudStore: NSIncrementalStore {
 	}
 	
 	open override func loadMetadata() throws {
+
 		if backingPersistentStoreCoordinator == nil {
 			guard let model = persistentStoreCoordinator?.managedObjectModel else {throw CloudStoreError.invalidManagedObjectModel}
 			entities = model.entitiesByName
@@ -400,9 +401,7 @@ open class CloudStore: NSIncrementalStore {
 			}
 			
 			self.needsInitialImport = metadata.serverChangeToken == nil
-			var m = self.metadata
-			m?[NSStoreUUIDKey] = metadata.uuid!
-			self.metadata = m
+			self.metadata = [NSStoreUUIDKey: metadata.uuid!]
 		}
 		
 		try loadDatabase()
