@@ -89,7 +89,12 @@ class CloudPullOperation: CloudOperation {
 								strongSelf.backingManagedObjectContext.perform {
 									metadata.serverChangeToken = serverChangeToken
 									if strongSelf.backingManagedObjectContext.hasChanges {
-										try? strongSelf.backingManagedObjectContext.save()
+										do {
+											try strongSelf.backingManagedObjectContext.save()
+										}
+										catch {
+//											print("\(error)")
+										}
 									}
 									strongSelf.workManagedObjectContext.perform {
 										do {
@@ -100,6 +105,23 @@ class CloudPullOperation: CloudOperation {
 											strongSelf.completionHandler(strongSelf, nil)
 										}
 										catch {
+/*											if (error as NSError).domain == NSCocoaErrorDomain && (error as NSError).code == NSManagedObjectConstraintMergeError, let conflicts = (error as NSError).userInfo["conflictList"] as? [NSConstraintConflict]  {
+												//conflicts.flatMap {$0.databaseObject}.forEach {strongSelf.workManagedObjectContext.delete($0)}
+												do {
+													if strongSelf.workManagedObjectContext.hasChanges {
+														try strongSelf.workManagedObjectContext.save()
+													}
+													strongSelf.finish()
+													strongSelf.completionHandler(strongSelf, nil)
+													
+												}
+												catch {
+													strongSelf.finish(error: error)
+													strongSelf.completionHandler(strongSelf, error)
+												}
+											}
+											else {
+											}*/
 											strongSelf.finish(error: error)
 											strongSelf.completionHandler(strongSelf, error)
 										}

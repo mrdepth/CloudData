@@ -82,6 +82,7 @@ open class CloudStore: NSIncrementalStore {
 			guard backingPersistentStore != nil else {throw CloudStoreError.unknown}
 			backingManagedObjectContext = NSManagedObjectContext(concurrencyType: .privateQueueConcurrencyType)
 			backingManagedObjectContext?.persistentStoreCoordinator = backingPersistentStoreCoordinator
+			backingManagedObjectContext?.mergePolicy = NSMergePolicy(merge: mergePolicyType)
 			
 			backingObjectHelper = BackingObjectHelper(store: self, managedObjectContext: backingManagedObjectContext!)
 			
@@ -775,6 +776,18 @@ open class CloudStore: NSIncrementalStore {
 					try self.backingManagedObjectContext?.save()
 				}
 				catch {
+//					let nsError = error as NSError
+//					switch (nsError.domain, nsError.code) {
+//					case (NSCocoaErrorDomain, NSManagedObjectConstraintMergeError):
+//						let conflicts = (nsError.userInfo["conflictList"] as? [NSConstraintConflict])?.map { conflict -> NSConstraintConflict in
+//							let conflictingObjects = conflict.conflictingObjects.flatMap {helper.objectID(backingObject: $0)}.flatMap {context?.object(with: $0)}
+//							let databaseObject = [conflict.databaseObject].flatMap {$0}.flatMap{helper.objectID(backingObject: $0)}.flatMap {context?.object(with: $0)}.first
+//							return NSConstraintConflict(constraint: conflict.constraint, database: databaseObject, databaseSnapshot: nil, conflicting: conflictingObjects, conflictingSnapshots: [])
+//						}
+//						err = NSError(domain: nsError.domain, code: nsError.code, userInfo: ["conflictList": conflicts ?? []])
+//					default:
+//						err = error
+//					}
 					err = error
 				}
 				
