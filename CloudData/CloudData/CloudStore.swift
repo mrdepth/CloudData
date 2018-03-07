@@ -110,18 +110,30 @@ open class CloudStore: NSIncrementalStore {
 	open override func obtainPermanentIDs(for array: [NSManagedObject]) throws -> [NSManagedObjectID] {
 		guard let recordZoneID = recordZoneID else {return []}
 		var result = [NSManagedObjectID]()
-		
+		var err: Error? = nil
 		backingManagedObjectContext?.performAndWait {
-			for object in array {
-				let record = objc_getAssociatedObject(object, CKRecordKey) as? CKRecord
-				let cdRecord = NSEntityDescription.insertNewObject(forEntityName: "CloudRecord", into: self.backingManagedObjectContext!) as! CloudRecord
-				cdRecord.recordType = object.entity.name
-				cdRecord.cache = NSEntityDescription.insertNewObject(forEntityName: "CloudRecordCache", into: self.backingManagedObjectContext!) as? CloudRecordCache
-				
-				cdRecord.cache?.cachedRecord = record ?? CKRecord(recordType: cdRecord.recordType!, zoneID: recordZoneID)
-				cdRecord.recordID = cdRecord.cache?.cachedRecord?.recordID.recordName
-				result.append(self.newObjectID(for: object.entity, referenceObject: cdRecord.recordID!))
+			do {
+				for object in array {
+					let record = objc_getAssociatedObject(object, CKRecordKey) as? CKRecord
+					let cdRecord = NSEntityDescription.insertNewObject(forEntityName: "CloudRecord", into: self.backingManagedObjectContext!) as! CloudRecord
+					cdRecord.recordType = object.entity.name
+					cdRecord.cache = NSEntityDescription.insertNewObject(forEntityName: "CloudRecordCache", into: self.backingManagedObjectContext!) as? CloudRecordCache
+					
+					cdRecord.cache?.cachedRecord = record ?? CKRecord(recordType: cdRecord.recordType!, zoneID: recordZoneID)
+					cdRecord.recordID = cdRecord.cache?.cachedRecord?.recordID.recordName
+					let bo = NSEntityDescription.insertNewObject(forEntityName: object.entity.name!, into: self.backingManagedObjectContext!)
+					bo.setValue(cdRecord, forKey: CloudRecordProperty)
+					try self.backingManagedObjectContext?.obtainPermanentIDs(for: [bo])
+					
+					result.append(self.newObjectID(for: object.entity, referenceObject: bo.objectID.uriRepresentation().absoluteString))
+				}
 			}
+			catch {
+				err = error
+			}
+		}
+		if let error = err {
+			throw error
 		}
 		return result
 	}
@@ -677,7 +689,6 @@ open class CloudStore: NSIncrementalStore {
 		var objects = (request.insertedObjects ?? Set()).union(request.updatedObjects ?? Set())
 		
 		var err: Error?
-		
 		backingManagedObjectContext?.performAndWait {
 			func backingObjectFrom(_ object: NSManagedObject) -> NSManagedObject? {
 				guard let record = helper.record(objectID: object.objectID) else {return nil}
@@ -686,13 +697,13 @@ open class CloudStore: NSIncrementalStore {
 				return record.value(forKey: recordType) as? NSManagedObject
 			}
 			
-			for object in request.insertedObjects ?? Set() {
-				guard let record = helper.record(objectID: object.objectID) else {continue}
-				guard let recordType = record.recordType else {continue}
-				let bo = NSEntityDescription.insertNewObject(forEntityName: object.entity.name!, into: self.backingManagedObjectContext!)
-				bo.setValue(record, forKey: CloudRecordProperty)
-				record.setValue(bo, forKey: recordType)
-			}
+//			for object in request.insertedObjects ?? Set() {
+//				guard let record = helper.record(objectID: object.objectID) else {continue}
+//				guard let recordType = record.recordType else {continue}
+//				let bo = NSEntityDescription.insertNewObject(forEntityName: object.entity.name!, into: self.backingManagedObjectContext!)
+//				bo.setValue(record, forKey: CloudRecordProperty)
+//				record.setValue(bo, forKey: recordType)
+//			}
 			
 			for object in objects {
 				let record = helper.record(objectID: object.objectID) ?? {
@@ -825,9 +836,10 @@ open class CloudStore: NSIncrementalStore {
 				switch resultType {
 				case NSFetchRequestResultType.managedObjectResultType, NSFetchRequestResultType.managedObjectIDResultType:
 					for object in result {
-						guard let record = (object as? NSObject)?.value(forKey: CloudRecordProperty) as? CloudRecord else {continue}
-						guard let recordID = record.recordID else {continue}
-						objects.append(self.newObjectID(for: request.entity!, referenceObject: recordID))
+						guard let object = object as? NSManagedObject else {continue}
+//						guard let record = (object as? NSObject)?.value(forKey: CloudRecordProperty) as? CloudRecord else {continue}
+//						guard let recordID = record.recordID else {continue}
+						objects.append(self.newObjectID(for: request.entity!, referenceObject: object.objectID.uriRepresentation().absoluteString))
 					}
 				case NSFetchRequestResultType.dictionaryResultType, NSFetchRequestResultType.countResultType:
 					objects = result

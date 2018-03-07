@@ -16,8 +16,9 @@ class ViewController: UITableViewController, NSFetchedResultsControllerDelegate 
 	
 	lazy var coordinator: NSPersistentStoreCoordinator = {
 		let url = URL(fileURLWithPath: NSSearchPathForDirectoriesInDomains(.applicationSupportDirectory, .userDomainMask, true).first!).appendingPathComponent("example.sqlie")
-
+//		try? FileManager.default.removeItem(at: url)
 		let coordinator = NSPersistentStoreCoordinator(managedObjectModel: self.managedObjectModel)
+		
 		try! coordinator.addPersistentStore(ofType: CloudStoreType, configurationName: nil, at: url, options: nil)
 		return coordinator
 	}()
@@ -30,6 +31,28 @@ class ViewController: UITableViewController, NSFetchedResultsControllerDelegate 
 
 	override func viewDidLoad() {
 		super.viewDidLoad()
+		
+		/*for _ in 0..<10 {
+			var context: NSManagedObjectContext? = NSManagedObjectContext(concurrencyType: .privateQueueConcurrencyType)
+			context?.persistentStoreCoordinator = coordinator
+			context?.perform {
+				for _ in 0..<1000 {
+					let parent = try? context?.fetch(NSFetchRequest<Parent>(entityName: "Parent")).first ?? {
+						let parent = Parent(context: context!)
+						parent.name = UUID().uuidString
+						return parent
+					}()
+					let child = Child(context: context!)
+					child.name = UUID().uuidString
+					child.parent = parent
+				}
+				try? context?.save()
+				print("save")
+				context = nil
+
+			}
+		}*/
+		
 		
 		let request = NSFetchRequest<Parent>(entityName: "Parent")
 		request.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]

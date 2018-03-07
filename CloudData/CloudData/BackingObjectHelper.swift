@@ -15,10 +15,13 @@ struct BackingObjectHelper {
 	
 	func backingObject(objectID: NSManagedObjectID) -> NSManagedObject? {
 		guard let ref = store?.referenceObject(for: objectID) as? String else {return nil}
-		let request = NSFetchRequest<NSManagedObject>(entityName: objectID.entity.name!)
-		request.predicate = NSPredicate(format: "\(CloudRecordProperty).recordID == %@", ref)
-		request.fetchLimit = 1
-		return (try? managedObjectContext.fetch(request))?.first
+		guard let url = URL(string: ref) else {return nil}
+		guard let objectID = store?.backingPersistentStoreCoordinator?.managedObjectID(forURIRepresentation: url) else {return nil}
+		return managedObjectContext.object(with: objectID)
+//		let request = NSFetchRequest<NSManagedObject>(entityName: objectID.entity.name!)
+//		request.predicate = NSPredicate(format: "\(CloudRecordProperty).recordID == %@", ref)
+//		request.fetchLimit = 1
+//		return (try? managedObjectContext.fetch(request))?.first
 	}
 	
 	func backingObject(recordID: String) -> NSManagedObject? {
@@ -28,8 +31,9 @@ struct BackingObjectHelper {
 	}
 	
 	func record(objectID: NSManagedObjectID) -> CloudRecord? {
-		guard let ref = store?.referenceObject(for: objectID) as? String else {return nil}
-		return record(recordID: ref)
+		return backingObject(objectID: objectID)?.value(forKey: CloudRecordProperty) as? CloudRecord
+//		guard let ref = store?.referenceObject(for: objectID) as? String else {return nil}
+//		return record(recordID: ref)
 	}
 
 	func record(recordID: String) -> CloudRecord? {
@@ -41,16 +45,18 @@ struct BackingObjectHelper {
 	
 	func objectID(backingObject: NSManagedObject) -> NSManagedObjectID? {
 		guard let store = store else {return nil}
-		guard let record = backingObject.value(forKey: CloudRecordProperty) as? CloudRecord else {return nil}
+//		guard let record = backingObject.value(forKey: CloudRecordProperty) as? CloudRecord else {return nil}
 		guard let entity = store.entities?[backingObject.entity.name!] else {return nil}
 		
-		return store.newObjectID(for: entity, referenceObject: record.recordID!)
+		return store.newObjectID(for: entity, referenceObject: backingObject.objectID.uriRepresentation().absoluteString)
 	}
 	
 	func objectID(recordID: String, entityName: String) -> NSManagedObjectID? {
 		guard let store = store else {return nil}
+		guard let record = self.record(recordID: recordID) else {return nil}
+		guard let object = record.value(forKey: entityName) as? NSManagedObject else {return nil}
 		guard let entity = store.entities?[entityName] else {return nil}
-		return store.newObjectID(for: entity, referenceObject: recordID)
+		return store.newObjectID(for: entity, referenceObject: object.objectID.uriRepresentation().absoluteString)
 	}
 	
 	func backingPredicate(from predicate: NSPredicate) -> NSPredicate {
