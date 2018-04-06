@@ -106,7 +106,7 @@ class CloudPullOperation: CloudOperation {
 										}
 										catch {
 /*											if (error as NSError).domain == NSCocoaErrorDomain && (error as NSError).code == NSManagedObjectConstraintMergeError, let conflicts = (error as NSError).userInfo["conflictList"] as? [NSConstraintConflict]  {
-												//conflicts.flatMap {$0.databaseObject}.forEach {strongSelf.workManagedObjectContext.delete($0)}
+												//conflicts.compactMap {$0.databaseObject}.forEach {strongSelf.workManagedObjectContext.delete($0)}
 												do {
 													if strongSelf.workManagedObjectContext.hasChanges {
 														try strongSelf.workManagedObjectContext.save()

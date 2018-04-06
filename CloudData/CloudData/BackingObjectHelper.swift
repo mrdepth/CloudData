@@ -105,9 +105,9 @@ struct BackingObjectHelper {
 		case let managedObject as NSManagedObject:
 			return managedObject.objectID.isTemporaryID ? managedObject : backingObject(objectID: managedObject.objectID)
 		case let array as NSArray:
-			return array.flatMap {backingObject(from: $0)}
+			return array.compactMap {backingObject(from: $0)}
 		case let set as NSSet:
-			return set.flatMap {backingObject(from: $0)}
+			return set.compactMap {backingObject(from: $0)}
 		case let dic as NSDictionary:
 			let out = NSMutableDictionary()
 			dic.forEach {

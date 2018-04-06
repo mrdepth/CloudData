@@ -334,7 +334,7 @@ open class CloudStore: NSIncrementalStore {
 		}
 		recordEntity.properties = properties;
 		
-		let names = Set(cloudDataObjectModel.entities.flatMap({$0.name}))
+		let names = Set(cloudDataObjectModel.entities.compactMap({$0.name}))
 		var cloudEndities = backingModel.entities.filter({names.contains($0.name!)})
 		cloudEndities.append(contentsOf: backingModel.entities(forConfigurationName: configurationName) ?? [])
 		
@@ -780,8 +780,8 @@ open class CloudStore: NSIncrementalStore {
 //					switch (nsError.domain, nsError.code) {
 //					case (NSCocoaErrorDomain, NSManagedObjectConstraintMergeError):
 //						let conflicts = (nsError.userInfo["conflictList"] as? [NSConstraintConflict])?.map { conflict -> NSConstraintConflict in
-//							let conflictingObjects = conflict.conflictingObjects.flatMap {helper.objectID(backingObject: $0)}.flatMap {context?.object(with: $0)}
-//							let databaseObject = [conflict.databaseObject].flatMap {$0}.flatMap{helper.objectID(backingObject: $0)}.flatMap {context?.object(with: $0)}.first
+//							let conflictingObjects = conflict.conflictingObjects.compactMap {helper.objectID(backingObject: $0)}.compactMap {context?.object(with: $0)}
+//							let databaseObject = [conflict.databaseObject].compactMap {$0}.compactMap{helper.objectID(backingObject: $0)}.compactMap {context?.object(with: $0)}.first
 //							return NSConstraintConflict(constraint: conflict.constraint, database: databaseObject, databaseSnapshot: nil, conflicting: conflictingObjects, conflictingSnapshots: [])
 //						}
 //						err = NSError(domain: nsError.domain, code: nsError.code, userInfo: ["conflictList": conflicts ?? []])
