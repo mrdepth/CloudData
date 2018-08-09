@@ -12,8 +12,8 @@ import CloudKit
 
 extension UUID {
 	init(ubiquityIdentityToken token: NSCoding) {
-		let data = NSKeyedArchiver.archivedData(withRootObject: token) as NSData
-		let md5 = data.md5
+		let data = NSKeyedArchiver.archivedData(withRootObject: token)
+		let md5 = data.md5()
 		
 		let uuid = md5.withUnsafeBytes { b -> uuid_t in
 			uuid_t(b[0], b[1], b[2], b[3],
@@ -42,11 +42,16 @@ extension NSAttributeDescription {
 		return value
 	}
 	
-	func reverseTransformedValue(_ value: Any?, deflated: Bool) -> Any? {
+	func reverseTransformedValue(_ value: Any?, compressed withAlgorithm: CompressionAlgorithm?) -> Any? {
 		var value = value
 		guard !(value is NSNull) else {return nil}
-		if let data = value as? NSData, deflated {
-			value = data.inflate() ?? data
+		if let data = value as? Data {
+			if let algorithm = withAlgorithm {
+				value = (try? data.decompressed(algorithm: algorithm)) ?? data
+			}
+			else {
+				value = data
+			}
 		}
 		
 		switch attributeType {
@@ -81,8 +86,8 @@ extension NSAttributeDescription {
 		return transformedValue(backingObject.value(forKey: self.name)) as? CKRecordValue
 	}
 	
-	func managedValue(from record: CKRecord, deflated: Bool) -> Any? {
-		return reverseTransformedValue(record[name], deflated: deflated)
+	func managedValue(from record: CKRecord, compressed withAlgorithm: CompressionAlgorithm?) -> Any? {
+		return reverseTransformedValue(record[name], compressed: withAlgorithm)
 	}
 
 }
@@ -230,10 +235,9 @@ extension CKRecord {
 	func nodeValues(store: CloudStore, includeToManyRelationships: Bool) -> [String: Any] {
 		guard let entity = store.entities?[recordType] else {return [:]}
 		var values = [String: Any]()
-		let deflated = store.binaryDataCompressionLevel != .none
 		for property in entity.properties {
 			if let attribute = property as? NSAttributeDescription {
-				if let value = attribute.managedValue(from: self, deflated: deflated) {
+				if let value = attribute.managedValue(from: self, compressed: store.binaryDataCompressionAlgorithm) {
 					values[attribute.name] = value
 				}
 			}

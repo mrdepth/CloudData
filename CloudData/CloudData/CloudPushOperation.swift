@@ -108,7 +108,7 @@ class CloudPushOperation: CloudOperation {
 		var recordsToSave = [CKRecord]()
 		var recordsToDelete = [CKRecordID]()
 		var cache = [CKRecordID: CloudRecord]()
-		let compressionLevel = store.binaryDataCompressionLevel
+		let compressionAlgorithm = store.binaryDataCompressionAlgorithm
 		
 		for record in (try? context.fetch(request)) ?? [] {
 			guard let recordID = record.cache?.cachedRecord?.recordID else {
@@ -134,8 +134,13 @@ class CloudPushOperation: CloudOperation {
 							switch value {
 							case is NSNull:
 								ckRecord[key] = nil as CKRecordValue?
-							case let data as NSData:
-								ckRecord[key] = (data.deflate(compressionLevel: compressionLevel) ?? data as Data) as CKRecordValue
+							case let data as Data:
+								if let compressionAlgorithm = compressionAlgorithm {
+									ckRecord[key] = ((try? data.compressed(algorithm: compressionAlgorithm)) ?? data) as NSData
+								}
+								else {
+									ckRecord[key] = data as NSData
+								}
 							default:
 								ckRecord[key] = value as? CKRecordValue
 							}

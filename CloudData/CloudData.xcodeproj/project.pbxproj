@@ -12,8 +12,6 @@
 		125F890F1E7E81E900E4CCC0 /* CloudPullOperation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125F890E1E7E81E900E4CCC0 /* CloudPullOperation.swift */; };
 		126B3DDC1E768FDA00008344 /* Synchronized.swift in Sources */ = {isa = PBXBuildFile; fileRef = 126B3DDB1E768FDA00008344 /* Synchronized.swift */; };
 		126B3DDF1E7696F100008344 /* CloudData.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = 126B3DDD1E7696F100008344 /* CloudData.xcdatamodeld */; };
-		126B3DE21E76978100008344 /* NSData+CloudData.h in Headers */ = {isa = PBXBuildFile; fileRef = 126B3DE01E76978100008344 /* NSData+CloudData.h */; settings = {ATTRIBUTES = (Public, ); }; };
-		126B3DE31E76978100008344 /* NSData+CloudData.m in Sources */ = {isa = PBXBuildFile; fileRef = 126B3DE11E76978100008344 /* NSData+CloudData.m */; };
 		126B3DE61E7697E000008344 /* CloudKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 126B3DE51E7697E000008344 /* CloudKit.framework */; };
 		126B3DED1E7699F600008344 /* Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 126B3DEC1E7699F600008344 /* Extensions.swift */; };
 		126B3DF01E769DE100008344 /* BackingObjectHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 126B3DEF1E769DE100008344 /* BackingObjectHelper.swift */; };
@@ -23,6 +21,7 @@
 		12D365231E72E64B000ED70B /* CloudOperationQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12D365221E72E64B000ED70B /* CloudOperationQueue.swift */; };
 		12D365251E72E66C000ED70B /* CloudOperation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12D365241E72E66C000ED70B /* CloudOperation.swift */; };
 		12D365271E72E9F0000ED70B /* Reachability.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12D365261E72E9F0000ED70B /* Reachability.swift */; };
+		12DE8611211B393500255EC9 /* Data+CloudData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12DE8610211B393500255EC9 /* Data+CloudData.swift */; };
 		12E022791E7C201D002A40B8 /* CloudManagedObjectContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12E022781E7C201D002A40B8 /* CloudManagedObjectContext.swift */; };
 /* End PBXBuildFile section */
 
@@ -37,6 +36,8 @@
 		126B3DE51E7697E000008344 /* CloudKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CloudKit.framework; path = System/Library/Frameworks/CloudKit.framework; sourceTree = SDKROOT; };
 		126B3DEC1E7699F600008344 /* Extensions.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Extensions.swift; sourceTree = "<group>"; };
 		126B3DEF1E769DE100008344 /* BackingObjectHelper.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BackingObjectHelper.swift; sourceTree = "<group>"; };
+		12AB972D212C07D800B30DD3 /* module.modulemap */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; path = module.modulemap; sourceTree = "<group>"; };
+		12AB972E212C08B500B30DD3 /* CommonCrypto.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CommonCrypto.h; sourceTree = "<group>"; };
 		12B68F301E811000006462B7 /* libz.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libz.tbd; path = usr/lib/libz.tbd; sourceTree = SDKROOT; };
 		12D364F71E72E382000ED70B /* CloudData.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = CloudData.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		12D364FA1E72E382000ED70B /* CloudData.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CloudData.h; sourceTree = "<group>"; };
@@ -45,6 +46,7 @@
 		12D365221E72E64B000ED70B /* CloudOperationQueue.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CloudOperationQueue.swift; sourceTree = "<group>"; };
 		12D365241E72E66C000ED70B /* CloudOperation.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CloudOperation.swift; sourceTree = "<group>"; };
 		12D365261E72E9F0000ED70B /* Reachability.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Reachability.swift; sourceTree = "<group>"; };
+		12DE8610211B393500255EC9 /* Data+CloudData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Data+CloudData.swift"; sourceTree = "<group>"; };
 		12E022781E7C201D002A40B8 /* CloudManagedObjectContext.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CloudManagedObjectContext.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -91,10 +93,12 @@
 			isa = PBXGroup;
 			children = (
 				12D364FA1E72E382000ED70B /* CloudData.h */,
+				12AB972E212C08B500B30DD3 /* CommonCrypto.h */,
 				12D364FB1E72E382000ED70B /* Info.plist */,
 				126B3DDB1E768FDA00008344 /* Synchronized.swift */,
 				126B3DE01E76978100008344 /* NSData+CloudData.h */,
 				126B3DE11E76978100008344 /* NSData+CloudData.m */,
+				12DE8610211B393500255EC9 /* Data+CloudData.swift */,
 				12D365201E72E3AC000ED70B /* CloudStore.swift */,
 				12D365221E72E64B000ED70B /* CloudOperationQueue.swift */,
 				12D365241E72E66C000ED70B /* CloudOperation.swift */,
@@ -106,6 +110,7 @@
 				125F88FF1E7B0D0B00E4CCC0 /* NotificationObserver.swift */,
 				12E022781E7C201D002A40B8 /* CloudManagedObjectContext.swift */,
 				126B3DDD1E7696F100008344 /* CloudData.xcdatamodeld */,
+				12AB972D212C07D800B30DD3 /* module.modulemap */,
 			);
 			path = CloudData;
 			sourceTree = "<group>";
@@ -117,7 +122,6 @@
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				126B3DE21E76978100008344 /* NSData+CloudData.h in Headers */,
 				12D364FC1E72E382000ED70B /* CloudData.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -191,6 +195,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				12DE8611211B393500255EC9 /* Data+CloudData.swift in Sources */,
 				126B3DF01E769DE100008344 /* BackingObjectHelper.swift in Sources */,
 				12D365211E72E3AC000ED70B /* CloudStore.swift in Sources */,
 				126B3DDC1E768FDA00008344 /* Synchronized.swift in Sources */,
@@ -201,7 +206,6 @@
 				125F890D1E7E742D00E4CCC0 /* CloudPushOperation.swift in Sources */,
 				125F89001E7B0D0B00E4CCC0 /* NotificationObserver.swift in Sources */,
 				12D365271E72E9F0000ED70B /* Reachability.swift in Sources */,
-				126B3DE31E76978100008344 /* NSData+CloudData.m in Sources */,
 				12D365231E72E64B000ED70B /* CloudOperationQueue.swift in Sources */,
 				125F890F1E7E81E900E4CCC0 /* CloudPullOperation.swift in Sources */,
 			);
@@ -337,6 +341,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.shimanski.CloudData;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
+				SWIFT_INCLUDE_PATHS = "${PROJECT_DIR}/CloudData";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 4.0;
 			};
@@ -358,6 +363,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.shimanski.CloudData;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
+				SWIFT_INCLUDE_PATHS = "${PROJECT_DIR}/CloudData";
 				SWIFT_VERSION = 4.0;
 			};
 			name = Release;

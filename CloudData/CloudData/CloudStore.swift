@@ -17,7 +17,7 @@ public struct CloudStoreOptions {
 	public static let databaseScopeKey: String = "databaseScopeKey"
 	public static let recordZoneKey: String = "recordZoneKey"
 	public static let mergePolicyType: String = "mergePolicyType"
-	public static let binaryDataCompressionLevel: String = "binaryDataCompressionLevel"
+	public static let binaryDataCompressionAlgorithm: String = "binaryDataCompressionAlgorithm"
 }
 
 public extension Notification.Name {
@@ -275,8 +275,8 @@ open class CloudStore: NSIncrementalStore {
 		}
 	}()
 	
-	lazy var binaryDataCompressionLevel: BinaryDataCompressionLevel = {
-		return self.options?[CloudStoreOptions.binaryDataCompressionLevel] as? BinaryDataCompressionLevel ?? .none
+	lazy var binaryDataCompressionAlgorithm: CompressionAlgorithm? = {
+		return self.options?[CloudStoreOptions.binaryDataCompressionAlgorithm] as? CompressionAlgorithm
 	}()
 	
 	lazy var recordZoneID: CKRecordZoneID? = {

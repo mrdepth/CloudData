@@ -142,7 +142,6 @@ class CloudPullOperation: CloudOperation {
 	}
 	
 	func save(record: CKRecord, completionHandler: @escaping () -> Void) {
-		let deflated = store.binaryDataCompressionLevel != .none
 
 		workManagedObjectContext.perform {
 			guard let objectID = self.backingObjectHelper.objectID(recordID: record.recordID.recordName, entityName: record.recordType) else {
@@ -172,7 +171,7 @@ class CloudPullOperation: CloudOperation {
 
 			for property in object.entity.properties {
 				if let attribute = property as? NSAttributeDescription {
-					let value = attribute.managedValue(from: record, deflated: deflated)
+					let value = attribute.managedValue(from: record, compressed: self.store.binaryDataCompressionAlgorithm)
 					object.setValue(value, forKey: attribute.name)
 				}
 				else if let relationship = property as? NSRelationshipDescription, relationship.shouldSerialize {
