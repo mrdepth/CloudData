@@ -28,7 +28,7 @@ class CloudPullOperation: CloudOperation {
 
 		self.workManagedObjectContext = CloudManagedObjectContext(concurrencyType: .privateQueueConcurrencyType)
 		self.workManagedObjectContext.persistentStoreCoordinator = store.persistentStoreCoordinator
-		self.workManagedObjectContext.mergePolicy = NSMergePolicy(merge: store.mergePolicyType)
+		self.workManagedObjectContext.mergePolicy = store.mergePolicy
 		self.backingObjectHelper = BackingObjectHelper(store: store, managedObjectContext: backingManagedObjectContext)
 		self.entities = workManagedObjectContext.persistentStoreCoordinator?.managedObjectModel.entitiesByName
 		cache = [:]

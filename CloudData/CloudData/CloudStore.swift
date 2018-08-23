@@ -16,8 +16,19 @@ public struct CloudStoreOptions {
 	public static let containerIdentifierKey: String = "containerIdentifierKey"
 	public static let databaseScopeKey: String = "databaseScopeKey"
 	public static let recordZoneKey: String = "recordZoneKey"
-	public static let mergePolicyType: String = "mergePolicyType"
-	public static let binaryDataCompressionAlgorithm: String = "binaryDataCompressionAlgorithm"
+	public static let mergePolicy: String = "mergePolicy"
+	public static let binaryDataCompressionMethod: String = "binaryDataCompressionMethod"
+}
+
+public struct CompressionMethod {
+	public static let lz4 = CompressionAlgorithm.lz4.rawValue
+	public static let zlibRAW = CompressionAlgorithm.zlibRAW.rawValue
+	public static let zlibDefault = CompressionAlgorithm.zlibDefault.rawValue
+	public static let zlibBestCompression = CompressionAlgorithm.zlibBestCompression.rawValue
+	public static let zlibBestSpeed = CompressionAlgorithm.zlibBestSpeed.rawValue
+	public static let lzma = CompressionAlgorithm.lzma.rawValue
+	public static let lz4raw = CompressionAlgorithm.lz4raw.rawValue
+	public static let lzfse = CompressionAlgorithm.lzfse.rawValue
 }
 
 public extension Notification.Name {
@@ -82,7 +93,7 @@ open class CloudStore: NSIncrementalStore {
 			guard backingPersistentStore != nil else {throw CloudStoreError.unknown}
 			backingManagedObjectContext = NSManagedObjectContext(concurrencyType: .privateQueueConcurrencyType)
 			backingManagedObjectContext?.persistentStoreCoordinator = backingPersistentStoreCoordinator
-			backingManagedObjectContext?.mergePolicy = NSMergePolicy(merge: mergePolicyType)
+			backingManagedObjectContext?.mergePolicy = mergePolicy
 			
 			backingObjectHelper = BackingObjectHelper(store: self, managedObjectContext: backingManagedObjectContext!)
 			
@@ -276,7 +287,7 @@ open class CloudStore: NSIncrementalStore {
 	}()
 	
 	lazy var binaryDataCompressionAlgorithm: CompressionAlgorithm? = {
-		return self.options?[CloudStoreOptions.binaryDataCompressionAlgorithm] as? CompressionAlgorithm
+		return (self.options?[CloudStoreOptions.binaryDataCompressionMethod] as? Int).flatMap {CompressionAlgorithm(rawValue: $0)}
 	}()
 	
 	lazy var recordZoneID: CKRecordZoneID? = {
@@ -295,10 +306,11 @@ open class CloudStore: NSIncrementalStore {
 
 	private lazy var containerIdentifier: String? = self.options?[CloudStoreOptions.containerIdentifierKey] as? String
 	
-	lazy var mergePolicyType: NSMergePolicyType = {
-		let mergePolicyType = (self.options?[CloudStoreOptions.mergePolicyType] as? NSMergePolicyType) ?? .mergeByPropertyObjectTrumpMergePolicyType
-		assert(mergePolicyType != .errorMergePolicyType, "NSErrorMergePolicyType is not supported")
-		return mergePolicyType
+	lazy var mergePolicy: NSMergePolicy = {
+		
+		let mergePolicy = (self.options?[CloudStoreOptions.mergePolicy] as? NSMergePolicy) ?? NSMergeByPropertyObjectTrumpMergePolicy as! NSMergePolicy
+		assert(mergePolicy.mergeType != .errorMergePolicyType, "NSErrorMergePolicyType is not supported")
+		return mergePolicy
 	}()
 	
 	

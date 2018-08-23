@@ -12,36 +12,23 @@ import CommonCrypto
 
 let bufferSize = 4096
 
-public enum ZLIBCompressionLevel {
-	case `default`
-	case bestCompression
-	case bestSpeed
-	var level: Int32 {
-		switch self {
-		case .default:
-			return Z_DEFAULT_COMPRESSION
-		case .bestCompression:
-			return Z_BEST_COMPRESSION
-		case .bestSpeed:
-			return Z_BEST_SPEED
-		}
-	}
-}
-
-public enum CompressionAlgorithm {
+public enum CompressionAlgorithm: Int {
 	case lz4
-	case zlibraw
-	case zlib(ZLIBCompressionLevel)
+	case zlibRAW
+	case zlibDefault
+	case zlibBestCompression
+	case zlibBestSpeed
 	case lzma
 	case lz4raw
 	case lzfse
+	
 	public var algorithm: compression_algorithm? {
 		switch self {
 		case .lz4:
 			return COMPRESSION_LZ4
-		case .zlibraw:
+		case .zlibRAW:
 			return COMPRESSION_ZLIB
-		case .zlib:
+		case .zlibDefault, .zlibBestCompression, .zlibBestSpeed:
 			return nil
 		case .lzma:
 			return COMPRESSION_LZMA
@@ -71,8 +58,12 @@ extension Data {
 	
 	public func compressed(algorithm: CompressionAlgorithm) throws -> Data  {
 		switch algorithm {
-		case let .zlib(level):
-			return try processed(comporessionLevel: level, encode: true)
+		case .zlibDefault:
+			return try processed(comporessionLevel: Z_DEFAULT_COMPRESSION, encode: true)
+		case .zlibBestCompression:
+			return try processed(comporessionLevel: Z_BEST_COMPRESSION, encode: true)
+		case .zlibBestSpeed:
+			return try processed(comporessionLevel: Z_BEST_SPEED, encode: true)
 		default:
 			return try processed(algorithm: algorithm.algorithm!, operation: COMPRESSION_STREAM_ENCODE, flags: Int32(COMPRESSION_STREAM_FINALIZE.rawValue))
 		}
@@ -80,8 +71,12 @@ extension Data {
 	
 	public func decompressed(algorithm: CompressionAlgorithm) throws -> Data {
 		switch algorithm {
-		case let .zlib(level):
-			return try processed(comporessionLevel: level, encode: false)
+		case .zlibDefault:
+			return try processed(comporessionLevel: Z_DEFAULT_COMPRESSION, encode: false)
+		case .zlibBestCompression:
+			return try processed(comporessionLevel: Z_BEST_COMPRESSION, encode: false)
+		case .zlibBestSpeed:
+			return try processed(comporessionLevel: Z_BEST_SPEED, encode: false)
 		default:
 			return try processed(algorithm: algorithm.algorithm!, operation: COMPRESSION_STREAM_DECODE, flags: 0)
 		}
@@ -125,7 +120,7 @@ extension Data {
 		})
 	}
 	
-	private func processed(comporessionLevel: ZLIBCompressionLevel, encode: Bool) throws -> Data {
+	private func processed(comporessionLevel: Int32, encode: Bool) throws -> Data {
 		var data = DispatchData.empty
 		
 		var copy = self
@@ -134,7 +129,7 @@ extension Data {
 			var strm = z_stream(next_in: nil, avail_in: 0, total_in: 0, next_out: nil, avail_out: 0, total_out: 0, msg: nil, state: nil, zalloc: nil, zfree: nil, opaque: nil, data_type: 0, adler: 0, reserved: 0)
 			try withUnsafeMutablePointer(to: &strm) { strmp in
 				if encode {
-					guard deflateInit_(strmp, comporessionLevel.level, ZLIB_VERSION, Int32(MemoryLayout<z_stream>.size)) == Z_OK else {throw CompressionError.initError}
+					guard deflateInit_(strmp, comporessionLevel, ZLIB_VERSION, Int32(MemoryLayout<z_stream>.size)) == Z_OK else {throw CompressionError.initError}
 				}
 				else {
 					guard inflateInit_(strmp, ZLIB_VERSION, Int32(MemoryLayout<z_stream>.size)) == Z_OK else {throw CompressionError.initError}
