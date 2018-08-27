@@ -127,32 +127,32 @@ extension NSRelationshipDescription {
 		}*/
 	}
 	
-	@nonobjc func ckReference(from backingObject: NSManagedObject, recordZoneID: CKRecordZoneID) -> Any? {
+	@nonobjc func ckReference(from backingObject: NSManagedObject, recordZoneID: CKRecordZone.ID) -> Any? {
 		var result: Any?
 		
 		backingObject.managedObjectContext?.performAndWait {
-			let action: CKReferenceAction = self.inverseRelationship?.deleteRule == .cascadeDeleteRule ? .deleteSelf : .none
+			let action: CKRecord.Reference.Action = self.inverseRelationship?.deleteRule == .cascadeDeleteRule ? .deleteSelf : .none
 			
 			let value = backingObject.value(forKey: self.name)
 			
 			if self.isToMany {
 				if self.isOrdered {
 					guard let value = value as? NSOrderedSet else {return}
-					var references = [CKReference]()
+					var references = [CKRecord.Reference]()
 					for object in value {
 						guard let object = object as? NSManagedObject else {continue}
 						guard let record = object.value(forKey: CloudRecordProperty) as? CloudRecord else {continue}
-						let reference = CKReference(recordID: CKRecordID(recordName: record.recordID!, zoneID: recordZoneID), action: action)
+						let reference = CKRecord.Reference(recordID: CKRecord.ID(recordName: record.recordID!, zoneID: recordZoneID), action: action)
 						references.append(reference)
 					}
 					result = references.count > 0 ? references : NSNull()
 				}
 				else {
 					guard let value = value as? Set<NSManagedObject> else {return}
-					var references = Set<CKReference>()
+					var references = Set<CKRecord.Reference>()
 					for object in value {
 						guard let record = object.value(forKey: CloudRecordProperty) as? CloudRecord else {continue}
-						let reference = CKReference(recordID: CKRecordID(recordName: record.recordID!, zoneID: recordZoneID), action: action)
+						let reference = CKRecord.Reference(recordID: CKRecord.ID(recordName: record.recordID!, zoneID: recordZoneID), action: action)
 						references.insert(reference)
 					}
 					
@@ -161,7 +161,7 @@ extension NSRelationshipDescription {
 			}
 			else if let object = value as? NSManagedObject {
 				guard let record = object.value(forKey: CloudRecordProperty) as? CloudRecord else {return}
-				result = CKReference(recordID: CKRecordID(recordName: record.recordID!, zoneID: recordZoneID), action: action)
+				result = CKRecord.Reference(recordID: CKRecord.ID(recordName: record.recordID!, zoneID: recordZoneID), action: action)
 			}
 		}
 		
@@ -171,7 +171,7 @@ extension NSRelationshipDescription {
 	@nonobjc func managedReference(from record: CKRecord, store: CloudStore) -> Any? {
 		let value = record[name]
 		if isToMany {
-			guard let value = value as? [CKReference] else {return NSNull()}
+			guard let value = value as? [CKRecord.Reference] else {return NSNull()}
 			
 			var set = [NSManagedObjectID]()
 
@@ -183,7 +183,7 @@ extension NSRelationshipDescription {
 			return isOrdered ? NSOrderedSet(array: set) : NSSet(array: set)
 		}
 		else {
-			if let reference = value as? CKReference ?? (value as? [CKReference])?.last {
+			if let reference = value as? CKRecord.Reference ?? (value as? [CKRecord.Reference])?.last {
 				return managedReference(from: reference, store: store)
 			}
 			else {
@@ -193,7 +193,7 @@ extension NSRelationshipDescription {
 
 	}
 	
-	@nonobjc func managedReference(from reference: CKReference, store: CloudStore) -> NSManagedObjectID? {
+	@nonobjc func managedReference(from reference: CKRecord.Reference, store: CloudStore) -> NSManagedObjectID? {
 		return store.backingObjectHelper?.objectID(recordID: reference.recordID.recordName, entityName: destinationEntity!.name!)
 	}
 

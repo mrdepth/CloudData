@@ -16,7 +16,7 @@ class CloudPushOperation: CloudOperation {
 	private let context: NSManagedObjectContext
 	
 	private var databaseOperation: CKModifyRecordsOperation?
-	private var cache: [CKRecordID: CloudRecord]?
+	private var cache: [CKRecord.ID: CloudRecord]?
 	
 	init(store: CloudStore, completionHandler: @escaping (Error?, [CKRecord]?) -> Void) {
 		self.store = store
@@ -106,8 +106,8 @@ class CloudPushOperation: CloudOperation {
 		let request = NSFetchRequest<CloudRecord>(entityName: "CloudRecord")
 		request.predicate = NSPredicate(format: "version > cache.version OR version == 0")
 		var recordsToSave = [CKRecord]()
-		var recordsToDelete = [CKRecordID]()
-		var cache = [CKRecordID: CloudRecord]()
+		var recordsToDelete = [CKRecord.ID]()
+		var cache = [CKRecord.ID: CloudRecord]()
 		let compressionAlgorithm = store.binaryDataCompressionAlgorithm
 		
 		for record in (try? context.fetch(request)) ?? [] {

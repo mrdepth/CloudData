@@ -48,7 +48,12 @@ class CloudPullOperation: CloudOperation {
 			
 			
 			func fetch() {
-				var fetchOperation: CKFetchRecordChangesOperation? = CKFetchRecordChangesOperation(recordZoneID: recordZoneID, previousServerChangeToken: metadata.serverChangeToken)
+				let config = CKFetchRecordZoneChangesOperation.ZoneOptions()
+				config.previousServerChangeToken = metadata.serverChangeToken
+				
+				var fetchOperation: CKFetchRecordZoneChangesOperation? = CKFetchRecordZoneChangesOperation(recordZoneIDs: [recordZoneID], optionsByRecordZoneID: [recordZoneID: config])
+				
+//				var fetchOperation: CKFetchRecordChangesOperation? = CKFetchRecordChangesOperation(recordZoneID: recordZoneID, previousServerChangeToken: metadata.serverChangeToken)
 				
 				let dispatchGroup = DispatchGroup()
 				
@@ -62,7 +67,7 @@ class CloudPullOperation: CloudOperation {
 					}
 				}
 				
-				fetchOperation?.recordWithIDWasDeletedBlock = { [weak self] recordID in
+				fetchOperation?.recordWithIDWasDeletedBlock = { [weak self] (recordID, _) in
 					guard let strongSelf = self else {return}
 					dispatchGroup.enter()
 					strongSelf.delete(recordID: recordID) {
@@ -70,9 +75,9 @@ class CloudPullOperation: CloudOperation {
 					}
 				}
 				
-				fetchOperation?.fetchRecordChangesCompletionBlock = { [weak self] (serverChangeToken, clientChangeTokenData, operationError) in
+				fetchOperation?.recordZoneFetchCompletionBlock = { [weak self] (zoneID, serverChangeToken, clientChangeTokenData, moreComing, operationError) in
 					guard let strongSelf = self else {return}
-					if fetchOperation?.moreComing == true {
+					if moreComing {
 						strongSelf.backingManagedObjectContext.perform {
 							metadata.serverChangeToken = serverChangeToken
 							fetch()
@@ -93,7 +98,7 @@ class CloudPullOperation: CloudOperation {
 											try strongSelf.backingManagedObjectContext.save()
 										}
 										catch {
-//											print("\(error)")
+											print("CloudData: \(error)")
 										}
 									}
 									strongSelf.workManagedObjectContext.perform {
@@ -105,23 +110,6 @@ class CloudPullOperation: CloudOperation {
 											strongSelf.completionHandler(strongSelf, nil)
 										}
 										catch {
-/*											if (error as NSError).domain == NSCocoaErrorDomain && (error as NSError).code == NSManagedObjectConstraintMergeError, let conflicts = (error as NSError).userInfo["conflictList"] as? [NSConstraintConflict]  {
-												//conflicts.compactMap {$0.databaseObject}.forEach {strongSelf.workManagedObjectContext.delete($0)}
-												do {
-													if strongSelf.workManagedObjectContext.hasChanges {
-														try strongSelf.workManagedObjectContext.save()
-													}
-													strongSelf.finish()
-													strongSelf.completionHandler(strongSelf, nil)
-													
-												}
-												catch {
-													strongSelf.finish(error: error)
-													strongSelf.completionHandler(strongSelf, error)
-												}
-											}
-											else {
-											}*/
 											strongSelf.finish(error: error)
 											strongSelf.completionHandler(strongSelf, error)
 										}
@@ -178,8 +166,8 @@ class CloudPullOperation: CloudOperation {
 					let value = record[relationship.name]
 					
 					if relationship.isToMany {
-						let references = value as? [CKReference] ?? {
-							guard let reference = value as? CKReference else {return []}
+						let references = value as? [CKRecord.Reference] ?? {
+							guard let reference = value as? CKRecord.Reference else {return []}
 							return [reference]
 						}()
 						var set = [NSManagedObject]()
@@ -200,7 +188,7 @@ class CloudPullOperation: CloudOperation {
 						}
 					}
 					else {
-						guard let reference = value as? CKReference else {continue}
+						guard let reference = value as? CKRecord.Reference else {continue}
 						guard let objectID = relationship.managedReference(from: reference, store: self.store) else {continue}
 						let referenceObject = get(objectID: objectID)
 						if objc_getAssociatedObject(referenceObject, CKRecordKey) == nil {
@@ -214,7 +202,7 @@ class CloudPullOperation: CloudOperation {
 		}
 	}
 
-	func delete(recordID: CKRecordID, completionHandler: @escaping () -> Void) {
+	func delete(recordID: CKRecord.ID, completionHandler: @escaping () -> Void) {
 		backingManagedObjectContext.perform {
 			if let object = self.backingObjectHelper.backingObject(recordID: recordID.recordName),
 				let objectID = self.backingObjectHelper.objectID(backingObject: object) {

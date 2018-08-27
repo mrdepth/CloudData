@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="11759" systemVersion="16D32" minimumToolsVersion="Automatic" sourceLanguage="Swift" userDefinedModelVersionIdentifier="">
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="14315.12.1" systemVersion="17G65" minimumToolsVersion="Automatic" sourceLanguage="Swift" userDefinedModelVersionIdentifier="">
     <entity name="CloudMetadata" representedClassName=".CloudMetadata" syncable="YES" codeGenerationType="class">
         <attribute name="recordZoneID" optional="YES" attributeType="Transformable" customClassName="CKRecordZoneID" syncable="YES"/>
         <attribute name="serverChangeToken" optional="YES" attributeType="Transformable" customClassName="CloudKit.CKServerChangeToken" syncable="YES"/>
@@ -7,10 +7,13 @@
     </entity>
     <entity name="CloudRecord" representedClassName=".CloudRecord" syncable="YES" codeGenerationType="class">
         <attribute name="changedKeys" optional="YES" attributeType="String" syncable="YES"/>
-        <attribute name="recordID" attributeType="String" indexed="YES" syncable="YES"/>
+        <attribute name="recordID" attributeType="String" syncable="YES"/>
         <attribute name="recordType" attributeType="String" syncable="YES"/>
         <attribute name="version" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES" syncable="YES"/>
         <relationship name="cache" optional="YES" maxCount="1" deletionRule="Cascade" destinationEntity="CloudRecordCache" inverseName="record" inverseEntity="CloudRecordCache" syncable="YES"/>
+        <fetchIndex name="byRecordIDIndex">
+            <fetchIndexElement property="recordID" type="Binary" order="ascending"/>
+        </fetchIndex>
     </entity>
     <entity name="CloudRecordCache" representedClassName=".CloudRecordCache" syncable="YES" codeGenerationType="class">
         <attribute name="cachedRecord" attributeType="Transformable" customClassName="CloudKit.CKRecord" syncable="YES"/>

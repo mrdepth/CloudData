@@ -10,6 +10,8 @@ import Foundation
 import CoreData
 import CloudKit
 
+public typealias CKRecordZoneID = CKRecordZone.ID
+
 public let CloudStoreType: String = "CloudData.CloudStore"
 
 public struct CloudStoreOptions {
@@ -48,10 +50,10 @@ public enum CloudStoreError: Error {
 	case invalidManagedObjectModel
 }
 
-public enum CloudStoreScope: Int {
-	case `public`
-	case `private`
-	case shared
+public struct CloudStoreScope {
+	public static let `public` = CKDatabase.Scope.public.rawValue
+	public static let `private` = CKDatabase.Scope.private.rawValue
+	public static let shared = CKDatabase.Scope.shared.rawValue
 }
 
 public let CloudStoreErrorKey = "error"
@@ -99,11 +101,25 @@ open class CloudStore: NSIncrementalStore {
 			
 			let center = NotificationCenter.default
 			
-			center.addObserver(self, selector: #selector(managedObjectContextDidSave(_:)), name: .NSManagedObjectContextDidSave, object: nil)
-			center.addObserver(self, selector: #selector(ubiquityIdentityDidChange(_:)), name: .NSUbiquityIdentityDidChange, object: nil)
-			center.addObserver(self, selector: #selector(didReceiveRemoteNotification(_:)), name: .CloudStoreDidReceiveRemoteNotification, object: nil)
-			center.addObserver(self, selector: #selector(didBecomeActive(_:)), name: .UIApplicationDidBecomeActive, object: nil)
-			center.addObserver(self, selector: #selector(willResignActive(_:)), name: .UIApplicationWillResignActive, object: nil)
+			managedObjectContextDidSaveObserver = center.addNotificationObserver(forName: .NSManagedObjectContextDidSave, object: nil, queue: nil) { [weak self] (note) in
+				self?.managedObjectContextDidSave(note)
+			}
+
+			ubiquityIdentityDidChangeObserver = center.addNotificationObserver(forName: .NSUbiquityIdentityDidChange, object: nil, queue: nil) { [weak self] (note) in
+				self?.ubiquityIdentityDidChange(note)
+			}
+
+			didReceiveRemoteNotificationObserver = center.addNotificationObserver(forName: .CloudStoreDidReceiveRemoteNotification, object: nil, queue: nil) { [weak self] (note) in
+				self?.didReceiveRemoteNotification(note)
+			}
+
+			didBecomeActiveObserver = center.addNotificationObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: nil) { [weak self] (note) in
+				self?.didBecomeActive(note)
+			}
+
+			willResignActiveObserver = center.addNotificationObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: nil) { [weak self] (note) in
+				self?.willResignActive(note)
+			}
 		}
 	}
 	
@@ -129,7 +145,9 @@ open class CloudStore: NSIncrementalStore {
 				cdRecord.recordType = object.entity.name
 				cdRecord.cache = NSEntityDescription.insertNewObject(forEntityName: "CloudRecordCache", into: self.backingManagedObjectContext!) as? CloudRecordCache
 				
-				cdRecord.cache?.cachedRecord = record ?? CKRecord(recordType: cdRecord.recordType!, zoneID: recordZoneID)
+				
+				
+				cdRecord.cache?.cachedRecord = record ?? CKRecord(recordType: cdRecord.recordType!, recordID: CKRecord.ID(recordName: UUID().uuidString, zoneID: recordZoneID))
 				cdRecord.recordID = cdRecord.cache?.cachedRecord?.recordID.recordName
 				result.append(self.newObjectID(for: object.entity, referenceObject: cdRecord.recordID!))
 			}
@@ -263,7 +281,7 @@ open class CloudStore: NSIncrementalStore {
 		didSet {
 			oldValue?.invalidate()
 			if let timer = autoPushTimer {
-				RunLoop.main.add(timer, forMode: .defaultRunLoopMode)
+				RunLoop.main.add(timer, forMode: RunLoop.Mode.default)
 			}
 		}
 	}
@@ -271,36 +289,24 @@ open class CloudStore: NSIncrementalStore {
 		didSet {
 			oldValue?.invalidate()
 			if let timer = autoPullTimer {
-				RunLoop.main.add(timer, forMode: .defaultRunLoopMode)
+				RunLoop.main.add(timer, forMode: RunLoop.Mode.default)
 			}
 		}
 	}
 
-	private lazy var databaseScope: CloudStoreScope = {
-		if #available(iOS 10.0, *) {
-			guard let value = self.options?[CloudStoreOptions.databaseScopeKey] as? Int else {return .private}
-			return CloudStoreScope(rawValue: value) ?? .private
-		}
-		else {
-			return .private
-		}
+	private lazy var databaseScope: CKDatabase.Scope = {
+		guard let value = self.options?[CloudStoreOptions.databaseScopeKey] as? Int else {return .private}
+		return CKDatabase.Scope(rawValue: value) ?? .private
 	}()
 	
 	lazy var binaryDataCompressionAlgorithm: CompressionAlgorithm? = {
 		return (self.options?[CloudStoreOptions.binaryDataCompressionMethod] as? Int).flatMap {CompressionAlgorithm(rawValue: $0)}
 	}()
 	
-	lazy var recordZoneID: CKRecordZoneID? = {
+	lazy var recordZoneID: CKRecordZone.ID? = {
 		guard let zone = (self.options?[CloudStoreOptions.recordZoneKey] as? String) ?? self.url?.deletingPathExtension().lastPathComponent else {return nil}
 		
-		let ownerName: String
-		if #available(iOS 10.0, *) {
-			ownerName = CKCurrentUserDefaultName
-		} else {
-			ownerName = CKOwnerDefaultName
-		}
-		
-		return CKRecordZoneID(zoneName: zone, ownerName: ownerName)
+		return CKRecordZone.ID(zoneName: zone, ownerName: CKCurrentUserDefaultName)
 	}()
 	private var recordZone: CKRecordZone?
 
@@ -424,11 +430,11 @@ open class CloudStore: NSIncrementalStore {
 		if #available(iOS 10.0, *) {
 			switch databaseScope {
 			case .public:
-				database = container?.database(with: CKDatabaseScope.public)
+				database = container?.database(with: CKDatabase.Scope.public)
 			case .private:
-				database = container?.database(with: CKDatabaseScope.private)
+				database = container?.database(with: CKDatabase.Scope.private)
 			case .shared:
-				database = container?.database(with: CKDatabaseScope.shared)
+				database = container?.database(with: CKDatabase.Scope.shared)
 			}
 			
 		} else {
@@ -540,8 +546,10 @@ open class CloudStore: NSIncrementalStore {
 					operation.finish(error: error)
 				}
 				else if let error = error as? CKError, case CKError.unknownItem = error {
-					let subscription = CKSubscription(zoneID: recordZoneID, subscriptionID: CloudStoreSubscriptionID, options: [])
-					let info = CKNotificationInfo()
+					
+					let subscription = CKRecordZoneSubscription(zoneID: recordZoneID, subscriptionID: CloudStoreSubscriptionID)
+					
+					let info = CKSubscription.NotificationInfo()
 					info.shouldSendContentAvailable = true
 					subscription.notificationInfo = info
 					
@@ -571,7 +579,8 @@ open class CloudStore: NSIncrementalStore {
 	
 	//MARK: - Notification handlers
 	
-	@objc func managedObjectContextDidSave(_ note: Notification) {
+	var managedObjectContextDidSaveObserver: NotificationObserver?
+	func managedObjectContextDidSave(_ note: Notification) {
 		guard let context = note.object as? NSManagedObjectContext else {return}
 		guard context != backingManagedObjectContext && context.persistentStoreCoordinator == backingPersistentStoreCoordinator else {return}
 		backingManagedObjectContext?.perform {
@@ -579,7 +588,8 @@ open class CloudStore: NSIncrementalStore {
 		}
 	}
 
-	@objc func ubiquityIdentityDidChange(_ note: Notification) {
+	var ubiquityIdentityDidChangeObserver: NotificationObserver?
+	func ubiquityIdentityDidChange(_ note: Notification) {
 		guard let token = FileManager.default.ubiquityIdentityToken else {return}
 		if !token.isEqual(ubiquityIdentityToken), let store = backingPersistentStore {
 			try? backingPersistentStoreCoordinator?.remove(store)
@@ -587,7 +597,8 @@ open class CloudStore: NSIncrementalStore {
 		}
 	}
 
-	@objc func didReceiveRemoteNotification(_ note: Notification) {
+	var didReceiveRemoteNotificationObserver: NotificationObserver?
+	func didReceiveRemoteNotification(_ note: Notification) {
 		guard let info = note.userInfo else {return}
 		guard let containerIdentifier = container?.containerIdentifier else {return}
 		guard let recordZoneID = recordZoneID else {return}
@@ -598,19 +609,21 @@ open class CloudStore: NSIncrementalStore {
 		perform(#selector(pull), with: nil, afterDelay: 1)
 	}
 
-	@objc func didBecomeActive(_ note: Notification) {
+	var didBecomeActiveObserver: NotificationObserver?
+	func didBecomeActive(_ note: Notification) {
 		operationQueue.isSuspended = false
 		NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(pull), object: nil)
 		perform(#selector(pull), with: nil, afterDelay: 3)
 		if let timer = autoPushTimer {
-			RunLoop.main.add(timer, forMode: .defaultRunLoopMode)
+			RunLoop.main.add(timer, forMode: RunLoop.Mode.default)
 		}
 		if let timer = autoPullTimer {
-			RunLoop.main.add(timer, forMode: .defaultRunLoopMode)
+			RunLoop.main.add(timer, forMode: RunLoop.Mode.default)
 		}
 	}
 
-	@objc func willResignActive(_ note: Notification) {
+	var willResignActiveObserver: NotificationObserver?
+	func willResignActive(_ note: Notification) {
 		operationQueue.isSuspended = true
 		NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(pull), object: nil)
 		autoPushTimer?.invalidate()
@@ -712,7 +725,7 @@ open class CloudStore: NSIncrementalStore {
 					record.recordType = object.entity.name
 					record.cache = NSEntityDescription.insertNewObject(forEntityName: "CloudRecordCache", into: self.backingManagedObjectContext!) as? CloudRecordCache
 					
-					record.cache?.cachedRecord = CKRecord(recordType: record.recordType!, zoneID: recordZoneID)
+					record.cache?.cachedRecord = CKRecord(recordType: record.recordType!, recordID: CKRecord.ID(recordName: UUID().uuidString, zoneID: recordZoneID))
 					record.recordID = record.cache?.cachedRecord?.recordID.recordName
 					return record
 				}()
