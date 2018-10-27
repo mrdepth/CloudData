@@ -197,7 +197,7 @@ open class CloudStore: NSIncrementalStore {
 			return NSIncrementalStoreNode(objectID: objectID, withValues: values, version: version)
 		}
 		else {
-			throw NSError(domain: NSSQLiteErrorDomain, code: NSSQLiteError, userInfo: nil)
+			throw NSError(domain: NSSQLiteErrorDomain, code: 133000, userInfo: ["objectID": objectID])
 		}
 	}
 	
