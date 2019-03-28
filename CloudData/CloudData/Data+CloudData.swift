@@ -51,7 +51,7 @@ extension Data {
 		let result = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: Int(CC_MD5_DIGEST_LENGTH))
 		defer{result.deallocate()}
 		withUnsafeBytes { ptr in
-			_ = CC_MD5(ptr, CC_LONG(self.count), result.baseAddress!)
+			_ = CC_MD5(ptr.baseAddress, CC_LONG(self.count), result.baseAddress!)
 		}
 		return Data(buffer: result)
 	}
@@ -86,7 +86,8 @@ extension Data {
 		var data = DispatchData.empty
 		
 		
-		try withUnsafeBytes { (ptr: UnsafePointer<UInt8>) in
+		try withUnsafeBytes { ptr in
+			guard let ptr = ptr.bindMemory(to: UInt8.self).baseAddress else {throw CompressionError.initError }
 			var stream = UnsafeMutablePointer<compression_stream>.allocate(capacity: 1)
 			
 			defer {stream.deallocate()}
@@ -125,7 +126,7 @@ extension Data {
 		
 		var copy = self
 		
-		try copy.withUnsafeMutableBytes { (ptr: UnsafeMutablePointer<Bytef>) in
+		try copy.withUnsafeMutableBytes { ptr in
 			var strm = z_stream(next_in: nil, avail_in: 0, total_in: 0, next_out: nil, avail_out: 0, total_out: 0, msg: nil, state: nil, zalloc: nil, zfree: nil, opaque: nil, data_type: 0, adler: 0, reserved: 0)
 			try withUnsafeMutablePointer(to: &strm) { strmp in
 				if encode {
@@ -138,7 +139,7 @@ extension Data {
 				var buffer = UnsafeMutableBufferPointer<Bytef>.allocate(capacity: bufferSize)
 				defer { buffer.deallocate() }
 
-				strmp.pointee.next_in = ptr
+				strmp.pointee.next_in = ptr.bindMemory(to: Bytef.self).baseAddress
 				strmp.pointee.avail_in = UInt32(self.count)
 				
 				repeat {

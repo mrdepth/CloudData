@@ -14,12 +14,12 @@ extension UUID {
 	init(ubiquityIdentityToken token: NSCoding) {
 		let data = NSKeyedArchiver.archivedData(withRootObject: token)
 		let md5 = data.md5()
-		
-		let uuid = md5.withUnsafeBytes { b -> uuid_t in
-			uuid_t(b[0], b[1], b[2], b[3],
-			       b[4], b[5], b[6], b[7],
-			       b[8], b[9], b[10], b[11],
-			       b[12], b[13], b[14], b[15])
+		let uuid = md5.withUnsafeBytes { ptr -> uuid_t in
+			let b = ptr.bindMemory(to: UInt8.self)
+			return uuid_t(b[0], b[1], b[2], b[3],
+						  b[4], b[5], b[6], b[7],
+						  b[8], b[9], b[10], b[11],
+						  b[12], b[13], b[14], b[15])
 		}
 		
 		self = UUID(uuid: uuid)
@@ -78,6 +78,8 @@ extension NSAttributeDescription {
 			else if let data = value as? Data {
 				return NSKeyedUnarchiver.unarchiveObject(with: data)
 			}
+		@unknown default:
+			return value
 		}
 		return value
 	}

@@ -136,7 +136,7 @@ class CloudPushOperation: CloudOperation {
 								ckRecord[key] = nil as CKRecordValue?
 							case let data as Data:
 								if let compressionAlgorithm = compressionAlgorithm {
-									ckRecord[key] = ((try? data.compressed(algorithm: compressionAlgorithm)) ?? data) as NSData
+									ckRecord[key] = try? data.compressed(algorithm: compressionAlgorithm) as NSData?
 								}
 								else {
 									ckRecord[key] = data as NSData

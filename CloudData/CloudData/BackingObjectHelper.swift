@@ -97,6 +97,8 @@ struct BackingObjectHelper {
 			return NSExpression(forUnionSet: expression.left, with: expression.right)
 		case .variable:
 			return expression
+		@unknown default:
+			return expression
 		}
 	}
 	

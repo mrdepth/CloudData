@@ -34,12 +34,12 @@ public struct CompressionMethod {
 }
 
 public extension Notification.Name {
-	public static let CloudStoreDidInitializeCloudAccount = Notification.Name(rawValue: "CloudStoreDidInitializeCloudAccount")
-	public static let CloudStoreDidFailtToInitializeCloudAccount = Notification.Name(rawValue: "CloudStoreDidFailtToInitializeCloudAccount")
-	public static let CloudStoreDidStartCloudImport = Notification.Name(rawValue: "CloudStoreDidStartCloudImport")
-	public static let CloudStoreDidFinishCloudImport = Notification.Name(rawValue: "CloudStoreDidFinishCloudImport")
-	public static let CloudStoreDidFailCloudImport = Notification.Name(rawValue: "CloudStoreDidFailCloudImport")
-	public static let CloudStoreDidReceiveRemoteNotification = Notification.Name(rawValue: "CloudStoreDidReceiveRemoteNotification")
+	static let CloudStoreDidInitializeCloudAccount = Notification.Name(rawValue: "CloudStoreDidInitializeCloudAccount")
+	static let CloudStoreDidFailtToInitializeCloudAccount = Notification.Name(rawValue: "CloudStoreDidFailtToInitializeCloudAccount")
+	static let CloudStoreDidStartCloudImport = Notification.Name(rawValue: "CloudStoreDidStartCloudImport")
+	static let CloudStoreDidFinishCloudImport = Notification.Name(rawValue: "CloudStoreDidFinishCloudImport")
+	static let CloudStoreDidFailCloudImport = Notification.Name(rawValue: "CloudStoreDidFailCloudImport")
+	static let CloudStoreDidReceiveRemoteNotification = Notification.Name(rawValue: "CloudStoreDidReceiveRemoteNotification")
 }
 
 public enum CloudStoreError: Error {
@@ -435,6 +435,8 @@ open class CloudStore: NSIncrementalStore {
 				database = container?.database(with: CKDatabase.Scope.private)
 			case .shared:
 				database = container?.database(with: CKDatabase.Scope.shared)
+			@unknown default:
+				database = container?.database(with: CKDatabase.Scope.private)
 			}
 			
 		} else {
@@ -603,8 +605,8 @@ open class CloudStore: NSIncrementalStore {
 		guard let containerIdentifier = container?.containerIdentifier else {return}
 		guard let recordZoneID = recordZoneID else {return}
 		
-		let notification = CKRecordZoneNotification(fromRemoteNotificationDictionary: info)
-		guard notification.containerIdentifier == containerIdentifier && notification.recordZoneID == recordZoneID else {return}
+		guard let notification = CKRecordZoneNotification(fromRemoteNotificationDictionary: info),
+		 notification.containerIdentifier == containerIdentifier && notification.recordZoneID == recordZoneID else {return}
 		NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(pull), object: nil)
 		perform(#selector(pull), with: nil, afterDelay: 1)
 	}

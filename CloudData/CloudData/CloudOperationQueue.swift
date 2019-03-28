@@ -72,7 +72,7 @@ class CloudOperationQueue: NSObject {
 					}
 				}
 				else {
-					if let i = operations.index(of: operation) {
+					if let i = operations.firstIndex(of: operation) {
 						operations.remove(at: i)
 					}
 					DispatchQueue.main.async {
